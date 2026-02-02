@@ -593,6 +593,9 @@
         }
 
         .nav-close {
+            position: absolute;
+            right: 16px;
+            top: 16px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 50%;
             width: 32px;
@@ -600,54 +603,6 @@
             display: grid;
             place-items: center;
             cursor: pointer;
-        }
-
-        .nav-header {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            position: absolute;
-            top: 16px;
-            right: 16px;
-        }
-
-        .nav-mute {
-            background: rgba(255, 255, 255, 0.15);
-            border: none;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            color: white;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: grid;
-            place-items: center;
-            padding: 0;
-        }
-
-        .nav-mute:hover {
-            background: rgba(255, 255, 255, 0.25);
-        }
-
-        .nav-mute.muted i::before {
-            content: "\f6a9";
-            /* fa-volume-xmark */
-        }
-
-        .nav-progress {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .nav-progress-bar {
-            height: 100%;
-            background: #4ade80;
-            width: 0%;
-            transition: width 0.3s ease-out;
         }
 
 
@@ -722,18 +677,6 @@
             backdrop-filter: blur(6px);
             background: rgba(255, 255, 255, 0.55);
             z-index: 1600;
-        }
-
-        .search-spinner {
-            position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--primary);
-            font-size: 14px;
-            display: none;
-            /* hidden by default */
-            pointer-events: none;
         }
 
         .spinner {
@@ -1348,20 +1291,6 @@
                 <div class="head">
                     <i class="fa-solid fa-chart-column"></i> Navigation Stats
                 </div>
-                <div class="input-group">
-                    <label>From</label>
-                    <div class="input-wrapper" style="position:relative;">
-                        <input type="text" id="fromInput" placeholder="Current Location">
-                        <i class="fa-solid fa-spinner fa-spin search-spinner" id="fromSpinner"></i>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label>To</label>
-                    <div class="input-wrapper" style="position:relative;">
-                        <input type="text" id="toInput" placeholder="Enter destination">
-                        <i class="fa-solid fa-spinner fa-spin search-spinner" id="toSpinner"></i>
-                    </div>
-                </div>
                 <div class="body">
                     <div class="stats">
                         <div class="stat">
@@ -1438,28 +1367,15 @@
 
             <!-- NAVIGATION OVERLAY -->
             <div class="nav-overlay" id="navOverlay">
-                <div class="nav-header">
-                    <button class="nav-mute" id="navMute" onclick="window.quantumMaps.toggleMute()">
-                        <i class="fa-solid fa-volume-high" id="muteIcon"></i>
-                    </button>
-                    <div class="nav-close" onclick="window.quantumMaps.stopNavigation()">
-                        <i class="fa-solid fa-xmark"></i>
-                    </div>
+                <div class="nav-close" onclick="window.quantumMaps.stopNavigation()">
+                    <i class="fa-solid fa-xmark"></i>
                 </div>
-
                 <div class="nav-instruction" id="navText">
-                    <i class="fa-solid fa-arrow-up" id="turnIcon"></i>
-                    <span id="instructionText">Head North</span>
+                    <i class="fa-solid fa-arrow-up"></i> Head North
                 </div>
-
                 <div class="nav-meta">
                     <span id="navNextDist">200 m</span>
-                    <span id="navSpeed">-- km/h</span>
                     <span id="navETA">12 min</span>
-                </div>
-
-                <div class="nav-progress">
-                    <div class="nav-progress-bar" id="navProgressBar"></div>
                 </div>
             </div>
 
@@ -1561,9 +1477,7 @@
             // Vehicle analysis settings
             VEHICLE_ANALYSIS_URL: 'http://localhost:5000/analyze_vehicle_fit',
             ALTERNATIVE_ROUTE_URL: 'http://localhost:5000/generate_alternative_route',
-            // Optimized Search Settings
-            SEARCH_DEBOUNCE_MS: 350,   // Increased from 280ms to reduce API calls
-            SEARCH_CACHE_TTL: 300000,  // 5 minutes cache validity
+            SEARCH_DEBOUNCE_MS: 280,
 
             // Geolocation settings
             GEOLOCATION_TIMEOUT: 10000,
@@ -1746,9 +1660,6 @@
                 this.toMarker = null;
                 this.places = [];
                 this.routeLine = null;
-
-                // Cache for search results
-                this.searchCache = new Map();
                 this.alternativeRoutes = [];
                 this.alternativeRouteLines = [];
 
@@ -2135,54 +2046,45 @@
                AUTOCOMPLETE & SEARCH METHODS
             ========================================================================= */
             bindAutocomplete(input, dropdown, onSelect, minChars = 3, maxItems = 6) {
-                // Identify the correct spinner based on input ID
-                const spinnerId = input.id === 'fromInput' ? 'fromSpinner' :
-                    input.id === 'toInput' ? 'toSpinner' : null;
-                const spinner = spinnerId ? document.getElementById(spinnerId) : null;
-
                 const doSearch = debounce(async (query) => {
                     if (query.length < minChars) {
                         dropdown.style.display = 'none';
                         return;
                     }
 
-                    // 1. Check Cache
-                    const cacheKey = query.toLowerCase();
-                    if (this.searchCache.has(cacheKey)) {
-                        const cached = this.searchCache.get(cacheKey);
-                        if (Date.now() - cached.time < CONFIG.SEARCH_CACHE_TTL) {
-                            // Use cached results
-                            this.renderDropdown(cached.data, dropdown, input, onSelect);
-                            return;
-                        }
-                    }
-
-                    // 2. Show Loading
-                    if (spinner) spinner.style.display = 'block';
-
                     try {
                         const response = await fetch(
                             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=${maxItems}`
                         );
-                        if (!response.ok) throw new Error('Search failed');
-
                         const data = await response.json();
 
-                        // 3. Update Cache
-                        this.searchCache.set(cacheKey, {
-                            time: Date.now(),
-                            data: data
+                        dropdown.innerHTML = '';
+                        data.forEach(result => {
+                            const item = document.createElement('div');
+                            item.className = 'item';
+                            const name = result.display_name || '';
+
+                            item.innerHTML = `
+                                <div class="name">${name.split(',')[0]}</div>
+                                <div class="addr">${name}</div>
+                            `;
+
+                            item.onclick = () => {
+                                dropdown.style.display = 'none';
+                                onSelect({
+                                    name,
+                                    lat: parseFloat(result.lat),
+                                    lng: parseFloat(result.lon)
+                                });
+                                input.value = name;
+                            };
+
+                            dropdown.appendChild(item);
                         });
 
-                        // 4. Render Results
-                        this.renderDropdown(data, dropdown, input, onSelect);
-
+                        dropdown.style.display = data.length ? 'block' : 'none';
                     } catch (error) {
-                        console.warn('Search error:', error);
                         dropdown.style.display = 'none';
-                    } finally {
-                        // 5. Hide Loading
-                        if (spinner) spinner.style.display = 'none';
                     }
                 }, CONFIG.SEARCH_DEBOUNCE_MS);
 
@@ -2193,34 +2095,6 @@
                         dropdown.style.display = 'none';
                     }
                 });
-            }
-
-            // Helper to render dropdown items
-            renderDropdown(data, dropdown, input, onSelect) {
-                dropdown.innerHTML = '';
-                data.forEach(result => {
-                    const item = document.createElement('div');
-                    item.className = 'item';
-                    const name = result.display_name || '';
-
-                    item.innerHTML = `
-                        <div class="name">${name.split(',')[0]}</div>
-                        <div class="addr">${name}</div>
-                    `;
-
-                    item.onclick = () => {
-                        dropdown.style.display = 'none';
-                        onSelect({
-                            name,
-                            lat: parseFloat(result.lat),
-                            lng: parseFloat(result.lon)
-                        });
-                        input.value = name;
-                    };
-
-                    dropdown.appendChild(item);
-                });
-                dropdown.style.display = data.length ? 'block' : 'none';
             }
 
             /* =========================================================================
@@ -2445,11 +2319,7 @@
                     const km = data.distance;
                     const minutes = Math.round(data.duration);
                     const optimization = data.optimization;
-
-                    // Use backend instructions if available, otherwise use OSRM fetched ones
-                    this.navigationInstructions = (data.navigation_instructions && data.navigation_instructions.length > 0)
-                        ? data.navigation_instructions
-                        : (this.fetchedInstructions || []);
+                    this.navigationInstructions = data.navigation_instructions || [];
 
                     const algoName = data.algorithm_used || (this.qOpt ? 'Quantum QAOA' : 'Classical');
                     this.showRouteBox(km, minutes, optimization, baselineKm, algoName);
@@ -2472,53 +2342,6 @@
                     this.loading(false);
                     setTimeout(() => this.status('Quantum Systems Online'), 2200);
                 }
-            }
-
-            formatOSRMInstruction(step) {
-                const m = step.maneuver;
-                const type = m.type; // turn, new name, depart, arrive, roundabout, merge, on ramp, off ramp, fork, end of road
-                const modifier = m.modifier; // left, right, slight left, etc.
-                const name = step.name || '';
-                const ref = step.ref ? ` (${step.ref})` : '';
-                const dest = step.destinations ? ` towards ${step.destinations.split(',')[0]}` : '';
-
-                let text = '';
-
-                // Capitalize first letter
-                const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-
-                switch (type) {
-                    case 'turn':
-                    case 'merge':
-                    case 'fork':
-                        text = `${cap(type)} ${modifier || ''} onto ${name || 'road'}${ref}`;
-                        break;
-                    case 'roundabout':
-                    case 'rotary':
-                        text = `At roundabout take exit ${m.exit || 1} onto ${name || 'road'}`;
-                        break;
-                    case 'depart':
-                        text = `Head ${modifier || ''} on ${name || 'road'}`;
-                        break;
-                    case 'arrive':
-                        text = `Arrive at destination`;
-                        break;
-                    case 'new name':
-                        text = `Continue on ${name || 'road'}${ref}`;
-                        break;
-                    case 'ramp':
-                    case 'on ramp':
-                        text = `Take ramp ${modifier || ''} onto ${name || 'highway'}`;
-                        break;
-                    case 'off ramp':
-                        text = `Take exit ${modifier || ''} towards ${dest || name}`;
-                        break;
-                    default:
-                        text = `${cap(type)} ${modifier || ''} ${name ? 'on ' + name : ''}`;
-                }
-
-                // Clean up double spaces
-                return text.replace(/\s+/g, ' ').trim();
             }
 
             async mockQuantumSolve(locations, mode) {
@@ -2575,44 +2398,18 @@
             async fetchRoadPolylineForRoute(points) {
                 const profile = TRANSPORT_MODES[this.transport].osrmProfile;
 
-                // Initialize collected instructions container
-                this.fetchedInstructions = [];
-
                 const fetchLeg = async (pointA, pointB) => {
                     const coords = `${pointA.lng},${pointA.lat};${pointB.lng},${pointB.lat}`;
-                    // Added steps=true to get instructions
-                    const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson&steps=true`;
+                    const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=full&geometries=geojson`;
 
                     try {
                         const response = await fetch(url);
                         if (!response.ok) throw new Error('OSRM error');
 
                         const data = await response.json();
-                        const route = data?.routes?.[0];
-                        const geometry = route?.geometry?.coordinates || [];
-
-                        // Extract instructions from steps
-                        if (route?.legs) {
-                            for (const leg of route.legs) {
-                                if (leg.steps) {
-                                    for (const step of leg.steps) {
-                                        this.fetchedInstructions.push({
-                                            instruction: this.formatOSRMInstruction(step),
-                                            distance: step.distance
-                                        });
-                                    }
-                                }
-                            }
-                        }
-
+                        const geometry = data?.routes?.[0]?.geometry?.coordinates || [];
                         return geometry.map(([lng, lat]) => [lat, lng]);
                     } catch (err) {
-                        // Fallback instruction
-                        const dist = haversineKm(pointA, pointB) * 1000;
-                        this.fetchedInstructions.push({
-                            instruction: `Head to next waypoint`,
-                            distance: dist
-                        });
                         return [[pointA.lat, pointA.lng], [pointB.lat, pointB.lng]];
                     }
                 };
@@ -2880,24 +2677,6 @@
                     return;
                 }
 
-                // Gray out the traveled portion of the route
-                if (this.navVisualLine && bestIdx > 0) {
-                    const traveledPath = this.navPath.slice(0, bestIdx + 1);
-
-                    if (!this.traveledLine) {
-                        this.traveledLine = L.polyline(traveledPath, {
-                            weight: 10,
-                            color: '#9CA3AF', // Gray for traveled
-                            opacity: 0.7,
-                            lineCap: 'round',
-                            lineJoin: 'round'
-                        }).addTo(this.map);
-                        this.traveledLine.bringToBack();
-                    } else {
-                        this.traveledLine.setLatLngs(traveledPath);
-                    }
-                }
-
                 if (this.navPath.length > 0 &&
                     userLoc.distanceTo(this.navPath[this.navPath.length - 1]) < 20) {
                     this.speak("You have arrived.");
@@ -2937,18 +2716,6 @@
                     this.map.removeLayer(this.routeBackLine);
                     this.routeBackLine = null;
                 }
-                if (this.traveledLine) {
-                    this.map.removeLayer(this.traveledLine);
-                    this.traveledLine = null;
-                }
-
-                // Reset UI
-                const muteBtn = document.getElementById('navMute');
-                const muteIcon = document.getElementById('muteIcon');
-                if (muteBtn) muteBtn.classList.remove('muted');
-                if (muteIcon) muteIcon.className = 'fa-solid fa-volume-high';
-                this.isMuted = false;
-
                 // Restore generic route style
                 if (this.routeLine) {
                     this.routeLine.setStyle({
@@ -2969,63 +2736,13 @@
                     const distToNext = activeInst.endDist - currentDist;
                     const instructionText = activeInst.instruction || "Continue ahead";
 
-                    // Dynamic turn icon based on instruction text
-                    const iconMap = {
-                        'left': 'fa-arrow-left',
-                        'right': 'fa-arrow-right',
-                        'u-turn': 'fa-rotate-left',
-                        'straight': 'fa-arrow-up',
-                        'slight left': 'fa-arrow-up-left',
-                        'slight right': 'fa-arrow-up-right',
-                        'arrive': 'fa-location-dot',
-                        'roundabout': 'fa-rotate-right'
-                    };
-
-                    let iconClass = 'fa-arrow-up'; // default
-                    const lowerInst = instructionText.toLowerCase();
-                    for (const [keyword, icon] of Object.entries(iconMap)) {
-                        if (lowerInst.includes(keyword)) {
-                            iconClass = icon;
-                            break;
-                        }
-                    }
-
-                    const turnIcon = document.getElementById('turnIcon');
-                    if (turnIcon) turnIcon.className = `fa-solid ${iconClass}`;
-
-                    const instText = document.getElementById('instructionText');
-                    if (instText) instText.textContent = instructionText;
-
+                    getElement('navText').innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${instructionText}`;
                     getElement('navNextDist').textContent = distToNext > 1000
                         ? (distToNext / 1000).toFixed(1) + ' km'
                         : Math.round(distToNext) + ' m';
 
-                    // Update progress bar
-                    if (this.totalPathLenMeters > 0) {
-                        const progress = Math.min((currentDist / this.totalPathLenMeters) * 100, 100);
-                        const progressBar = document.getElementById('navProgressBar');
-                        if (progressBar) progressBar.style.width = `${progress}%`;
-                    }
-
-                    // Update ETA dynamically
-                    const remainingDist = Math.max(0, this.totalPathLenMeters - currentDist);
-                    const speedMps = (this.lastSpeed && this.lastSpeed > 0) ? this.lastSpeed : 8.33; // default approx 30km/h
-                    const remainingSeconds = remainingDist / speedMps;
-                    const etaMinutes = Math.ceil(remainingSeconds / 60);
-
-                    getElement('navETA').textContent = etaMinutes > 60
-                        ? `${Math.floor(etaMinutes / 60)}h ${etaMinutes % 60}m`
-                        : `${etaMinutes} min`;
-
-                    // Update speed display
-                    if (this.lastSpeed !== undefined) {
-                        const speedKmh = Math.round(this.lastSpeed * 3.6);
-                        const speedEl = getElement('navSpeed');
-                        if (speedEl) speedEl.textContent = `${speedKmh} km/h`;
-                    }
-
                     const instIndex = this.mappedInstructions.indexOf(activeInst);
-                    if (instIndex !== this.lastInstructionIndex && !this.isMuted) {
+                    if (instIndex !== this.lastInstructionIndex) {
                         this.speak(instructionText);
                         this.lastInstructionIndex = instIndex;
                     }
@@ -3033,42 +2750,9 @@
             }
 
             speak(text) {
-                if (!('speechSynthesis' in window) || this.isMuted) return;
-
-                // Cancel any pending speech to avoid overlap
-                window.speechSynthesis.cancel();
-
-                const utterance = new SpeechSynthesisUtterance(text);
-
-                // Try to use a natural voice
-                const voices = window.speechSynthesis.getVoices();
-                const preferredVoice = voices.find(v =>
-                    v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Daniel') || v.name.includes('Natural'))
-                ) || voices.find(v => v.lang.startsWith('en'));
-
-                if (preferredVoice) utterance.voice = preferredVoice;
-
-                utterance.rate = 1.0;
-                utterance.pitch = 1.0;
-                utterance.volume = 0.9;
-
-                window.speechSynthesis.speak(utterance);
-            }
-
-            toggleMute() {
-                this.isMuted = !this.isMuted;
-                const muteBtn = document.getElementById('navMute');
-                const muteIcon = document.getElementById('muteIcon');
-
-                if (muteBtn && muteIcon) {
-                    if (this.isMuted) {
-                        muteBtn.classList.add('muted');
-                        muteIcon.className = 'fa-solid fa-volume-xmark';
-                        window.speechSynthesis.cancel();
-                    } else {
-                        muteBtn.classList.remove('muted');
-                        muteIcon.className = 'fa-solid fa-volume-high';
-                    }
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    window.speechSynthesis.speak(utterance);
                 }
             }
 

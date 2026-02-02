@@ -1546,7 +1546,8 @@
            CONFIGURATION & CONSTANTS
         ============================================================================= */
         const CONFIG = {
-            BACKEND_URL: 'http://localhost:5000/quantum_route',
+            // ⚠️ DEPLOYMENT: Replace YOUR-BACKEND-NAME with your actual Render service name
+            BACKEND_URL: 'https://YOUR-BACKEND-NAME.onrender.com/quantum_route',
             USE_BACKEND: true,
 
             // Map settings
@@ -1559,8 +1560,8 @@
             MAX_SEARCH_RESULTS: 6,
 
             // Vehicle analysis settings
-            VEHICLE_ANALYSIS_URL: 'http://localhost:5000/analyze_vehicle_fit',
-            ALTERNATIVE_ROUTE_URL: 'http://localhost:5000/generate_alternative_route',
+            VEHICLE_ANALYSIS_URL: 'https://YOUR-BACKEND-NAME.onrender.com/analyze_vehicle_fit',
+            ALTERNATIVE_ROUTE_URL: 'https://YOUR-BACKEND-NAME.onrender.com/generate_alternative_route',
             // Optimized Search Settings
             SEARCH_DEBOUNCE_MS: 350,   // Increased from 280ms to reduce API calls
             SEARCH_CACHE_TTL: 300000,  // 5 minutes cache validity
