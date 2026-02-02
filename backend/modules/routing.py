@@ -196,8 +196,7 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'instructions': 'true',
         'preference': 'recommended',
         'units': 'km',
-        'geometry': 'true',
-        'geometry_format': 'geojson'
+        'geometry': 'true'
     }
     
     try:
