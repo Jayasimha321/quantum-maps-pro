@@ -10,11 +10,11 @@ CONFIG = {
     # Use environment variable for API key
     'ORS_API_KEY': os.environ.get('ORS_API_KEY', ''),
 # ... rest of config.py
-    # CORS settings
+    # CORS settings - Allow all origins for Render deployment
     'CORS_SETTINGS': {
-        'ORIGINS': os.environ.get('CORS_ORIGINS', '*').split(','),
+        'ORIGINS': ['*', 'https://quantum-maps-pro-frontend.onrender.com', 'https://quantum-maps-pro-landing.onrender.com'],
         'METHODS': ['GET', 'POST', 'OPTIONS'],
-        'ALLOW_HEADERS': ['Content-Type', 'Authorization']
+        'ALLOW_HEADERS': ['Content-Type', 'Authorization', 'Accept']
     },
     'ORS_PROFILES': {
         'driving': 'driving-car',
