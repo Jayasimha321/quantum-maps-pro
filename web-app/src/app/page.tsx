@@ -51,7 +51,7 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-start pt-4">
-              <a href="/q1.html" className="w-full sm:w-auto bg-cta text-white font-bold h-12 px-8 rounded-lg flex items-center justify-center gap-2 shadow-cta hover:scale-105 transition-transform duration-200">
+              <a href="https://quantum-maps-pro-frontend.onrender.com" className="w-full sm:w-auto bg-cta text-white font-bold h-12 px-8 rounded-lg flex items-center justify-center gap-2 shadow-cta hover:scale-105 transition-transform duration-200">
                 Start Navigating
                 <Navigation className="w-5 h-5" />
               </a>

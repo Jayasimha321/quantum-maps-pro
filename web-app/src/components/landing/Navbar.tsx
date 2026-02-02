@@ -45,7 +45,7 @@ export function Navbar() {
                         )}
                     </button>
 
-                    <a href="/q1.html" className="relative group overflow-hidden bg-cta hover:bg-cta/90 text-white font-bold py-2.5 px-6 rounded-lg transition-all hover:bg-opacity-90 shadow-cta hover:shadow-lg hover:-translate-y-0.5">
+                    <a href="https://quantum-maps-pro-frontend.onrender.com" className="relative group overflow-hidden bg-cta hover:bg-cta/90 text-white font-bold py-2.5 px-6 rounded-lg transition-all hover:bg-opacity-90 shadow-cta hover:shadow-lg hover:-translate-y-0.5">
                         <span className="relative z-10 flex items-center gap-2">
                             Launch App
                             <Map className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
