@@ -752,3 +752,144 @@ def analyze_vehicle_fit(vehicle_dimensions, route_points, config):
     except Exception as e:
         logging.error(f"Error analyzing vehicle fit: {e}")
         return {'fits': True, 'warnings': [str(e)], 'constraints': {}}
+
+
+# ============================================================================
+# PHASE 3: SEGMENT-LEVEL CONSTRAINT CHECKING
+# ============================================================================
+
+def analyze_vehicle_fit_v2(vehicle_dimensions, route_points, segment_metadata, osm_constraints=None):
+    """
+    Enhanced vehicle fit analysis with segment-level checking.
+    Uses ORS segment metadata (waytypes) and Overpass OSM constraints.
+    
+    Args:
+        vehicle_dimensions: dict with 'width', 'height', 'weight' (optional)
+        route_points: list of {'lat': float, 'lng': float}
+        segment_metadata: output from extract_segment_metadata()
+        osm_constraints: output from overpass_client.find_constraints_on_route()
+    
+    Returns:
+        dict with fits, violations, summary
+    """
+    if not vehicle_dimensions:
+        return {'fits': True, 'violations': [], 'summary': {}}
+    
+    # Extract vehicle dimensions with defaults
+    vehicle_width = vehicle_dimensions.get('width', 1.8)
+    vehicle_height = vehicle_dimensions.get('height', 1.5)
+    vehicle_weight = vehicle_dimensions.get('weight', 0)  # tons
+    
+    # Safety buffer (30cm on each side for maneuvering)
+    SAFETY_BUFFER = 0.3
+    required_width = vehicle_width + SAFETY_BUFFER
+    
+    violations = []
+    high_severity_count = 0
+    
+    # --- Check ORS segment metadata (estimated road widths) ---
+    segments = segment_metadata.get('segments', []) if segment_metadata else []
+    
+    for segment in segments:
+        road_type = segment.get('road_type', 'unknown')
+        estimated_width = segment.get('estimated_width', 2.5)
+        
+        # Width violation
+        if required_width > estimated_width:
+            severity = 'high' if required_width > estimated_width + 0.5 else 'medium'
+            violations.append({
+                'type': 'width',
+                'source': 'ors_segment',
+                'segment_index': segment.get('start_index'),
+                'road_type': road_type,
+                'vehicle_needs': required_width,
+                'road_has': estimated_width,
+                'severity': severity,
+                'message': f"Vehicle ({vehicle_width}m) too wide for {road_type} ({estimated_width}m est.)"
+            })
+            if severity == 'high':
+                high_severity_count += 1
+        
+        # Surface warning (unpaved roads for heavy vehicles)
+        surface = segment.get('surface', 'unknown')
+        if surface in ['unpaved', 'gravel', 'dirt', 'ground', 'sand'] and vehicle_weight > 3.5:
+            violations.append({
+                'type': 'surface',
+                'source': 'ors_segment',
+                'segment_index': segment.get('start_index'),
+                'surface': surface,
+                'severity': 'low',
+                'message': f"Heavy vehicle ({vehicle_weight}t) on {surface} road may cause issues"
+            })
+    
+    # --- Check Overpass OSM constraints (actual measured limits) ---
+    if osm_constraints:
+        for constraint in osm_constraints:
+            osm_maxheight = constraint.get('maxheight')
+            osm_maxwidth = constraint.get('maxwidth')
+            osm_maxweight = constraint.get('maxweight')
+            constraint_name = constraint.get('name', 'Unknown location')
+            is_bridge = constraint.get('is_bridge', False)
+            is_tunnel = constraint.get('is_tunnel', False)
+            
+            location_type = 'bridge' if is_bridge else ('tunnel' if is_tunnel else 'road')
+            
+            # Height violation (most critical for bridges/tunnels)
+            if osm_maxheight and vehicle_height > osm_maxheight:
+                violations.append({
+                    'type': 'height',
+                    'source': 'osm',
+                    'osm_id': constraint.get('osm_id'),
+                    'location': constraint_name,
+                    'location_type': location_type,
+                    'vehicle_needs': vehicle_height,
+                    'limit': osm_maxheight,
+                    'severity': 'critical',
+                    'message': f"Vehicle height ({vehicle_height}m) exceeds {location_type} limit ({osm_maxheight}m) at {constraint_name}"
+                })
+                high_severity_count += 1
+            
+            # Width violation from OSM
+            if osm_maxwidth and vehicle_width > osm_maxwidth:
+                violations.append({
+                    'type': 'width',
+                    'source': 'osm',
+                    'osm_id': constraint.get('osm_id'),
+                    'location': constraint_name,
+                    'vehicle_needs': vehicle_width,
+                    'limit': osm_maxwidth,
+                    'severity': 'high',
+                    'message': f"Vehicle width ({vehicle_width}m) exceeds limit ({osm_maxwidth}m) at {constraint_name}"
+                })
+                high_severity_count += 1
+            
+            # Weight violation
+            if osm_maxweight and vehicle_weight > osm_maxweight:
+                violations.append({
+                    'type': 'weight',
+                    'source': 'osm',
+                    'osm_id': constraint.get('osm_id'),
+                    'location': constraint_name,
+                    'vehicle_needs': vehicle_weight,
+                    'limit': osm_maxweight,
+                    'severity': 'high',
+                    'message': f"Vehicle weight ({vehicle_weight}t) exceeds limit ({osm_maxweight}t) at {constraint_name}"
+                })
+                high_severity_count += 1
+    
+    # --- Build summary ---
+    fits = high_severity_count == 0
+    
+    return {
+        'fits': fits,
+        'violations': violations,
+        'summary': {
+            'total_violations': len(violations),
+            'high_severity': high_severity_count,
+            'critical_count': len([v for v in violations if v.get('severity') == 'critical']),
+            'segments_checked': len(segments),
+            'osm_constraints_checked': len(osm_constraints) if osm_constraints else 0,
+            'can_generate_alternative': not fits
+        },
+        'vehicle_dimensions': vehicle_dimensions
+    }
