@@ -2439,7 +2439,7 @@
                         ? data.navigation_instructions
                         : (this.fetchedInstructions || []);
 
-                    const algoName = data.algorithm_used || (this.qOpt ? 'Quantum QAOA' : 'Classical');
+                    const algoName = data.algorithm_used || 'ORS Standard';
                     this.showRouteBox(km, minutes, optimization, baselineKm, algoName);
 
                     if (this.qOpt) {
@@ -3523,10 +3523,18 @@
                 getElement('fitDetails').style.display = 'block';
 
                 // Populate constraints if available, or dashes
-                getElement('roadWidth').textContent = data.constraints?.min_width ? `${data.constraints.min_width}m` : '—';
-                getElement('bridgeHeight').textContent = data.constraints?.min_height ? `${data.constraints.min_height}m` : '—';
-                getElement('weightLimit').textContent = data.constraints?.max_weight ? `${data.constraints.max_weight}t` : '—';
-                getElement('turnRadius').textContent = '—'; // Backend doesn't calculate this yet
+                // Populate constraints or show status
+                const getConstraintStatus = (type, val, limit) => {
+                    const v = data.violations.find(v => v.type === type);
+                    if (v) return `FAIL (<${v.limit}${data.constraints?.unit || ''})`; // Show limit if failed
+                    if (fits) return 'Verified OK'; // If whole route fits
+                    return '—';
+                };
+
+                getElement('roadWidth').textContent = getConstraintStatus('width');
+                getElement('bridgeHeight').textContent = getConstraintStatus('height');
+                getElement('weightLimit').textContent = getConstraintStatus('weight');
+                getElement('turnRadius').textContent = '—';
 
                 if (fits) {
                     getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
