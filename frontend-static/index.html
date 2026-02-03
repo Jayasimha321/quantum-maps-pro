@@ -3290,8 +3290,8 @@
                 getElement('routeBox').style.display = 'block';
                 getElement('rDist').textContent = formatDistance(km);
                 getElement('rEta').textContent = formatDuration(minutes);
-                // Use actual algorithm name from backend if available, else usage setting
-                const displayAlgo = algorithmName || (this.qOpt ? 'Quantum QAOA' : 'Classical');
+                // Only show algorithm name if backend explicitly provides it
+                const displayAlgo = algorithmName || 'ORS Router';
                 getElement('rAlgo').textContent = `${displayAlgo} · ${this.transport}`;
                 getElement('rOpt').textContent = `${optimization}%`;
 
@@ -3463,7 +3463,7 @@
                 // Show analysis UI
                 getElement('vehicleAnalysisResults').style.display = 'block';
                 getElement('fitStatus').style.display = 'flex';
-                getElement('fitStatusText').textContent = 'Analyzing route constraints with Quantum Engine...';
+                getElement('fitStatusText').textContent = 'Verifying route constraints via HGV profile...';
                 getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--warning)';
 
                 // Visualize footprint
@@ -3494,7 +3494,11 @@
                         })
                     });
 
-                    if (!response.ok) throw new Error('Analysis API failed');
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        console.error('Vehicle analysis failed:', response.status, errorBody);
+                        throw new Error(`Analysis failed (${response.status})`);
+                    }
 
                     const data = await response.json();
 

@@ -476,28 +476,52 @@ def analyze_vehicle_fit_endpoint():
             }
         
         # ==========================================
-        # PHASE 2: Query Overpass API for OSM constraints
+        # PHASE 2 & 3: Real Constraint Verification (Overpass)
         # ==========================================
-        osm_constraints = []
-        if OVERPASS_AVAILABLE and route_points:
-            try:
-                all_constraints = get_road_constraints_along_route(route_points)
-                osm_constraints = find_constraints_on_route(route_points, all_constraints)
-                app.logger.info(f"Found {len(osm_constraints)} OSM constraints on route")
-            except Exception as e:
-                app.logger.warning(f"Overpass API query failed: {e}")
+        real_violations = []
+        osm_constraints_found = 0
         
+        # Check if enabled in config (default True for this feature)
+        params_verify = app.config.get('VERIFY_WITH_OVERPASS', True)
+        
+        if params_verify and route_points:
+            try:
+                # Import verification function here to avoid circular imports if any
+                from modules.routing import verify_route_constraints
+                
+                verification_result = verify_route_constraints(
+                    route_points, 
+                    dimensions, 
+                    app.logger
+                )
+                
+                real_violations = verification_result['violations']
+                osm_constraints_found = verification_result['constraints_found']
+                
+                if real_violations:
+                    app.logger.warning(f"Found {len(real_violations)} real constraint violations via Overpass")
+                    
+            except Exception as e:
+                app.logger.warning(f"Overpass constraint verification failed: {e}")
+                app.logger.error(traceback.format_exc())
+                
         # ==========================================
-        # PHASE 3: Segment-level constraint checking
+        # Combine Analysis Results
         # ==========================================
+        # Start with legacy analysis (v2) for structure
         fit_analysis = analyze_vehicle_fit_v2(
             dimensions, 
             route_points, 
             segment_metadata, 
-            osm_constraints
+            [] # Pass empty list as we handle constraints separately now
         )
         
-        # ==========================================
+        # Override with real violations if found
+        if real_violations:
+            fit_analysis['fits'] = False
+            fit_analysis['violations'].extend(real_violations)
+            fit_analysis['summary']['message'] = f"Route has {len(real_violations)} verified constraint violations."
+            fit_analysis['summary']['note'] = "Constraints verified against real OSM bridge/road data."
         # PHASE 4: Iterative Safe Route Search
         # ==========================================
         safe_route_result = None
@@ -545,7 +569,7 @@ def analyze_vehicle_fit_endpoint():
                 'total_segments': segment_metadata['total_segments'],
                 'has_waytypes': segment_metadata['has_waytypes']
             },
-            'osm_constraints_found': len(osm_constraints),
+            'osm_constraints_found': osm_constraints_found,
             'recommended_avoidance': get_recommended_avoidance(dimensions)
         }
         

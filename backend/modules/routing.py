@@ -1348,6 +1348,16 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
     weight = vehicle_dimensions.get('weight', 3.5)
     length = vehicle_dimensions.get('length', 5.0)
     
+    # Smart axle load calculation based on weight class
+    axle_count = vehicle_dimensions.get('axle_count', 2 if weight < 7.5 else 3 if weight < 15 else 5)
+    axleload = round(weight / axle_count, 2)
+    logger.info(f"Calculated axle load: {axleload}t (assuming {axle_count} axles for {weight}t vehicle)")
+    
+    # Valid avoid_features for driving-hgv profile (per ORS documentation)
+    HGV_VALID_AVOID_FEATURES = {'ferries', 'highways', 'tollways', 'fords'}
+    requested_features = ['ferries', 'fords']
+    valid_features = [f for f in requested_features if f in HGV_VALID_AVOID_FEATURES]
+    
     # Construct ORS HGV Profile Payload
     headers = {
         'Authorization': config.get('ORS_API_KEY', ''),
@@ -1370,74 +1380,325 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         },
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
         'options': {
-            # 'avoid_features': ['ferries', 'fords', 'steps'], # Commented out to debug API failure
             'profile_params': {
                 'restrictions': {
                     'width': width,
                     'height': height,
                     'weight': weight,
                     'length': length,
-                    'axleload': weight / 2 # Simple assumption
+                    'axleload': axleload
                 }
             }
         }
     }
     
+    # Only add avoid_features if we have valid ones
+    if valid_features:
+        payload['options']['avoid_features'] = valid_features
+    
     try:
-        url = "https://api.openrouteservice.org/v2/directions/driving-hgv" # Correct endpoint for POST
+        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
         
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         
         if response.status_code != 200:
             logger.warning(f"ORS HGV Request Failed: {response.status_code} - {response.text}")
-            # Fallback to standard driving-car if HGV fails (e.g. account limit)?
-            # But user wants reliable routes. Wait, better to return error/empty than unsafe route?
-            # Or try standard request but mark as "Standard Car Profile"?
-            return {'success': False, 'routes': [], 'message': f"ORS Error: {response.status_code}"}
+            
+            # Graceful fallback to driving-car profile
+            if response.status_code == 400:
+                logger.info("Attempting fallback to driving-car profile (no dimension filtering)")
+                fallback_payload = {
+                    'coordinates': payload['coordinates'],
+                    'profile': 'driving-car',
+                    'preference': 'recommended',
+                    'units': 'km',
+                    'geometry': 'true',
+                    'alternative_routes': payload['alternative_routes']
+                }
+                fallback_url = "https://api.openrouteservice.org/v2/directions/driving-car"
+                fallback_response = requests.post(fallback_url, json=fallback_payload, headers=headers, timeout=30)
+                
+                if fallback_response.status_code == 200:
+                    data = fallback_response.json()
+                    parsed_routes = _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=False)
+                    return {
+                        'success': len(parsed_routes) > 0,
+                        'routes': parsed_routes,
+                        'count': len(parsed_routes),
+                        'attempts': 1,
+                        'warning': 'HGV profile unavailable. Used car profile—route may not respect vehicle dimensions.',
+                        'profile_used': 'driving-car'
+                    }
+            
+            return {'success': False, 'routes': [], 'message': f"ORS Error: {response.status_code}", 'attempts': 1}
             
         data = response.json()
         
-        # Parse Routes
-        parsed_routes = []
-        if 'routes' in data:
-            for i, route_data in enumerate(data['routes']):
-                 # Geometry Handling
-                raw_geometry = route_data.get('geometry')
-                if isinstance(raw_geometry, str):
-                    geometry = decode_polyline(raw_geometry)
-                else:
-                    geometry = raw_geometry if raw_geometry else []
-                
-                route_points = [{'lat': lat, 'lng': lng} for lng, lat in geometry]
-                summary = route_data['summary']
-                
-                # Mock fit analysis (since ORS guaranteed it fits!)
-                fit_result = {
-                    'fits': True,
-                    'violations': [],
-                    'summary': {'message': 'Natively verified by ORS HGV Profile'},
-                    'vehicle_dimensions': vehicle_dimensions
-                }
-                
-                parsed_route = {
-                    'route_points': route_points,
-                    'distance_km': summary['distance'] / 1000.0,
-                    'duration_min': summary['duration'] / 60.0,
-                    'segment_metadata': {}, # Not critical for display
-                    'fit_analysis': fit_result,
-                    'is_safe': True, # It IS safe by definition of HGV profile
-                    'id': i,
-                    'tags': ['hgv_profile']
-                }
-                parsed_routes.append(parsed_route)
+        # Parse Routes using helper function
+        parsed_routes = _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=True)
         
         return {
             'success': len(parsed_routes) > 0,
             'routes': parsed_routes,
             'count': len(parsed_routes),
-            'attempts': 1 # HGV profile is a single attempt
+            'attempts': 1,
+            'profile_used': 'driving-hgv'
         }
         
     except Exception as e:
         logger.error(f"Error in find_safe_route (HGV): {e}")
         return {'success': False, 'routes': [], 'message': str(e), 'attempts': 1}
+
+
+def _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=True):
+    """
+    Parse ORS route response into standardized format.
+    
+    Args:
+        data: ORS API response JSON
+        vehicle_dimensions: Vehicle dimension dict
+        is_hgv_verified: True if HGV profile was used (dimensions verified by ORS)
+    
+    Returns:
+        List of parsed route dicts
+    """
+    parsed_routes = []
+    
+    if 'routes' not in data:
+        return parsed_routes
+    
+    for i, route_data in enumerate(data['routes']):
+        # Geometry Handling
+        raw_geometry = route_data.get('geometry')
+        if isinstance(raw_geometry, str):
+            geometry = decode_polyline(raw_geometry)
+        else:
+            geometry = raw_geometry if raw_geometry else []
+        
+        route_points = [{'lat': lat, 'lng': lng} for lng, lat in geometry]
+        summary = route_data['summary']
+        
+        # Honest fit analysis based on profile used
+        if is_hgv_verified:
+            fit_result = {
+                'fits': True,
+                'violations': [],
+                'summary': {
+                    'message': 'Route calculated using ORS HGV profile with dimension constraints.',
+                    'note': 'ORS filters roads incompatible with specified dimensions based on OSM tags.'
+                },
+                'vehicle_dimensions': vehicle_dimensions
+            }
+            is_safe = True
+            tags = ['hgv_profile', 'dimension_filtered']
+        else:
+            fit_result = {
+                'fits': None,  # Unknown - not verified
+                'violations': [],
+                'summary': {
+                    'message': 'Route calculated using standard car profile.',
+                    'warning': 'Vehicle dimension constraints NOT applied. Manual verification recommended.'
+                },
+                'vehicle_dimensions': vehicle_dimensions
+            }
+            is_safe = False  # Not verified = not safe by default
+            tags = ['car_profile', 'unverified']
+        
+        parsed_route = {
+            'route_points': route_points,
+            'distance_km': summary['distance'] / 1000.0,
+            'duration_min': summary['duration'] / 60.0,
+            'segment_metadata': {},
+            'fit_analysis': fit_result,
+            'is_safe': is_safe,
+            'id': i,
+            'tags': tags
+        }
+        parsed_routes.append(parsed_route)
+    
+    return parsed_routes
+
+
+# =============================================================================
+# PHASE 3: OVERPASS API REAL CONSTRAINT VERIFICATION
+# =============================================================================
+
+def parse_dimension_value(value_str):
+    """
+    Parse OSM dimension values like '3.5', '3.5 m', '12 t', '3.5m' into float.
+    
+    Args:
+        value_str: String like '3.5', '3.5 m', '12t'
+    
+    Returns:
+        float value or None if unparseable
+    """
+    if not value_str:
+        return None
+    
+    # Remove common suffixes and clean
+    cleaned = value_str.lower().strip()
+    cleaned = cleaned.replace('m', '').replace('t', '').replace('kg', '').strip()
+    
+    # Handle "below X" or "max X" patterns
+    for prefix in ['below', 'max', 'under', '<', '<=']:
+        cleaned = cleaned.replace(prefix, '').strip()
+    
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_rate=20):
+    """
+    Verify route against real OSM constraint data from Overpass API.
+    
+    This function samples points along the route and queries Overpass for
+    maxheight, maxweight, and maxwidth tags on nearby ways.
+    
+    Args:
+        route_points: List of {'lat': float, 'lng': float} dicts
+        vehicle_dimensions: Dict with 'width', 'height', 'weight' keys
+        logger: Logger instance
+        sample_rate: Check every Nth point (default 20)
+    
+    Returns:
+        Dict with:
+            - 'violations': list of violation dicts
+            - 'checked_points': number of points checked
+            - 'constraints_found': number of constraint tags found
+    """
+    violations = []
+    constraints_found = 0
+    
+    # Extract vehicle dimensions
+    v_height = vehicle_dimensions.get('height', 2.0)
+    v_width = vehicle_dimensions.get('width', 2.0)
+    v_weight = vehicle_dimensions.get('weight', 3.5)
+    
+    # Sample points along route
+    sample_points = route_points[::sample_rate]
+    
+    # Limit to prevent API abuse (max 10 points)
+    if len(sample_points) > 10:
+        # Sample evenly distributed points
+        indices = np.linspace(0, len(sample_points) - 1, 10, dtype=int)
+        sample_points = [sample_points[i] for i in indices]
+    
+    logger.info(f"Verifying constraints at {len(sample_points)} sample points")
+    
+    for pt in sample_points:
+        try:
+            # Build Overpass query for constraints near this point
+            query = f"""
+            [out:json][timeout:5];
+            (
+              way(around:30,{pt['lat']},{pt['lng']})["maxheight"];
+              way(around:30,{pt['lat']},{pt['lng']})["maxweight"];
+              way(around:30,{pt['lat']},{pt['lng']})["maxwidth"];
+            );
+            out tags;
+            """
+            
+            response = requests.post(
+                'https://overpass-api.de/api/interpreter',
+                data={'data': query},
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"Overpass query failed at {pt}: {response.status_code}")
+                continue
+            
+            data = response.json()
+            elements = data.get('elements', [])
+            
+            for element in elements:
+                tags = element.get('tags', {})
+                way_id = element.get('id', 'unknown')
+                
+                # Check maxheight
+                if 'maxheight' in tags:
+                    limit = parse_dimension_value(tags['maxheight'])
+                    if limit and v_height > limit:
+                        constraints_found += 1
+                        violations.append({
+                            'type': 'height',
+                            'lat': pt['lat'],
+                            'lng': pt['lng'],
+                            'limit': limit,
+                            'vehicle_value': v_height,
+                            'osm_way_id': way_id,
+                            'message': f"Height clearance {limit}m < vehicle height {v_height}m",
+                            'severity': 'critical'
+                        })
+                    elif limit:
+                        constraints_found += 1
+                
+                # Check maxweight
+                if 'maxweight' in tags:
+                    limit = parse_dimension_value(tags['maxweight'])
+                    if limit and v_weight > limit:
+                        constraints_found += 1
+                        violations.append({
+                            'type': 'weight',
+                            'lat': pt['lat'],
+                            'lng': pt['lng'],
+                            'limit': limit,
+                            'vehicle_value': v_weight,
+                            'osm_way_id': way_id,
+                            'message': f"Weight limit {limit}t < vehicle weight {v_weight}t",
+                            'severity': 'critical'
+                        })
+                    elif limit:
+                        constraints_found += 1
+                
+                # Check maxwidth
+                if 'maxwidth' in tags:
+                    limit = parse_dimension_value(tags['maxwidth'])
+                    if limit and v_width > limit:
+                        constraints_found += 1
+                        violations.append({
+                            'type': 'width',
+                            'lat': pt['lat'],
+                            'lng': pt['lng'],
+                            'limit': limit,
+                            'vehicle_value': v_width,
+                            'osm_way_id': way_id,
+                            'message': f"Width limit {limit}m < vehicle width {v_width}m",
+                            'severity': 'warning'
+                        })
+                    elif limit:
+                        constraints_found += 1
+                        
+        except requests.Timeout:
+            logger.warning(f"Overpass timeout at point {pt}")
+            continue
+        except Exception as e:
+            logger.error(f"Overpass error at {pt}: {e}")
+            continue
+    
+    # Deduplicate violations by location (within ~50m)
+    unique_violations = []
+    for v in violations:
+        is_duplicate = False
+        for uv in unique_violations:
+            if uv['type'] == v['type']:
+                dist = haversine_distance_km(
+                    {'lat': v['lat'], 'lng': v['lng']},
+                    {'lat': uv['lat'], 'lng': uv['lng']}
+                )
+                if dist < 0.05:  # Within 50m
+                    is_duplicate = True
+                    break
+        if not is_duplicate:
+            unique_violations.append(v)
+    
+    logger.info(f"Constraint verification complete: {len(unique_violations)} violations from {constraints_found} constraints")
+    
+    return {
+        'violations': unique_violations,
+        'checked_points': len(sample_points),
+        'constraints_found': constraints_found
+    }
