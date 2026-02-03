@@ -3422,6 +3422,7 @@
             async analyzeVehicleFit() {
                 // Reset state
                 this.vehicleAnalysisShown = false;
+                this.clearVehicleAnalysis(); // Ensure clean state
 
                 const vehicleType = getElement('vehicleType').value;
                 let vehicleWidth, vehicleHeight, vehicleWeight, vehicleLength;
@@ -3454,76 +3455,178 @@
                     vehicleLength = dims.length;
                 }
 
-                // Show analysis UI - ONLY ONCE
+                // Store dimensions for later use
+                this.currentFitAnalysis = {
+                    vehicleWidth, vehicleHeight, vehicleWeight, vehicleLength
+                };
+
+                // Show analysis UI
                 getElement('vehicleAnalysisResults').style.display = 'block';
                 getElement('fitStatus').style.display = 'flex';
-                getElement('fitStatusText').textContent = 'Analyzing route constraints...';
+                getElement('fitStatusText').textContent = 'Analyzing route constraints with Quantum Engine...';
                 getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--warning)';
 
+                // Visualize footprint
+                this.drawVehicleFootprint(this.fromMarker ? this.fromMarker.getLatLng() : this.user, vehicleWidth, vehicleLength);
+
                 try {
-                    await sleep(1000);
-
-                    // Simulate road analysis
-                    const roadWidth = 3.5 + Math.random() * 0.5;
-                    const bridgeHeight = 4.2 + Math.random() * 0.8;
-                    const weightLimit = 25 + Math.random() * 15;
-                    const turnRadius = 15 + Math.random() * 10;
-
-                    const fits = vehicleWidth < roadWidth - 0.5 &&
-                        vehicleHeight < bridgeHeight - 0.3 &&
-                        vehicleWeight < weightLimit - 2 &&
-                        vehicleLength * 1.3 < turnRadius;
-
-                    // Display results
-                    getElement('roadWidth').textContent = `${roadWidth.toFixed(1)}m`;
-                    getElement('bridgeHeight').textContent = `${bridgeHeight.toFixed(1)}m`;
-                    getElement('weightLimit').textContent = `${weightLimit.toFixed(0)} tons`;
-                    getElement('turnRadius').textContent = `${turnRadius.toFixed(0)}m`;
-                    getElement('fitDetails').style.display = 'block';
-
-                    if (fits) {
-                        // Vehicle FITS - SHOW SUCCESS MESSAGE ONCE
-                        if (!this.vehicleAnalysisShown) {
-                            getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
-                            getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--success)';
-                            getElement('alternativeRouteSection').style.display = 'none';
-                            this.toast('Vehicle fits on the selected route', 'success');
-                            this.vehicleAnalysisShown = true;
-                        }
-                    } else {
-                        // Vehicle DOESN'T FIT - SHOW ERROR AND GENERATE ALTERNATIVES
-                        if (!this.vehicleAnalysisShown) {
-                            getElement('fitStatusText').textContent = 'Vehicle does not fit on route ✗';
-                            getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
-                            this.toast('Vehicle does not fit on this route. Generating alternatives...', 'warning');
-                            this.vehicleAnalysisShown = true;
-                        }
-
-                        // Store for alternative generation
-                        this.currentFitAnalysis = {
-                            fits: false,
-                            vehicleWidth,
-                            vehicleHeight,
-                            vehicleWeight,
-                            vehicleLength,
-                            roadWidth,
-                            bridgeHeight,
-                            weightLimit,
-                            turnRadius
-                        };
-
-                        // Visualize the vehicle scale on the map
-                        this.drawVehicleFootprint(this.fromMarker ? this.fromMarker.getLatLng() : this.user, vehicleWidth, vehicleLength);
-
-                        // Generate alternative routes automatically
-                        await this.generateAlternativeRoutes();
+                    if (!this.routeLine) {
+                        this.toast('Please calculate a route first', 'error');
+                        return;
                     }
+
+                    const routePoints = this.routeLine.getLatLngs().map(p => ({ lat: p.lat, lng: p.lng }));
+
+                    // Call Backend API
+                    // Use relative URL or CONFIG.API_URL if available
+                    const apiUrl = (typeof CONFIG !== 'undefined' && CONFIG.API_URL) ? `${CONFIG.API_URL}/analyze_vehicle_fit` : '/analyze_vehicle_fit';
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            vehicle_type: 'custom', // Use custom to pass explicit dimensions
+                            vehicle_dimensions: { width: vehicleWidth, height: vehicleHeight, weight: vehicleWeight, length: vehicleLength },
+                            route_points: routePoints,
+                            generate_alternatives: true
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Analysis API failed');
+
+                    const data = await response.json();
+
+                    // Update UI with REAL data
+                    this.updateAnalysisUI(data);
 
                 } catch (error) {
                     console.error('Vehicle analysis error:', error);
-                    this.toast('Analysis failed', 'error');
-                    getElement('fitStatusText').textContent = 'Analysis failed';
+                    this.toast('Analysis failed: ' + error.message, 'error');
+                    getElement('fitStatusText').textContent = 'Analysis connection failed';
                     getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
+
+                    // Fallback to local generation if backend fails? 
+                    // No, explicitly fail to avoid misleading user.
+                }
+            }
+
+            updateAnalysisUI(data) {
+                const fits = data.fits;
+
+                // Update Details Panel
+                getElement('fitDetails').style.display = 'block';
+
+                // Populate constraints if available, or dashes
+                getElement('roadWidth').textContent = data.constraints?.min_width ? `${data.constraints.min_width}m` : '—';
+                getElement('bridgeHeight').textContent = data.constraints?.min_height ? `${data.constraints.min_height}m` : '—';
+                getElement('weightLimit').textContent = data.constraints?.max_weight ? `${data.constraints.max_weight}t` : '—';
+                getElement('turnRadius').textContent = '—'; // Backend doesn't calculate this yet
+
+                if (fits) {
+                    getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
+                    getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--success)';
+                    getElement('alternativeRouteSection').style.display = 'none';
+                    this.toast('Vehicle fits on the selected route', 'success');
+
+                    // Show proactively recommended avoidances if any
+                    if (data.recommended_avoidance && data.recommended_avoidance.length > 0) {
+                        this.toast(`Tip: Consider avoiding ${data.recommended_avoidance.join(', ')}`, 'info');
+                    }
+                } else {
+                    getElement('fitStatusText').textContent = 'Vehicle does not fit on route ✗';
+                    getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
+                    this.toast('Vehicle does not fit! Searching for safer alternatives...', 'warning');
+
+                    // Show violations
+                    const violations = data.violations.map(v => `${v.type}: ${v.message}`).join('; ');
+                    getElement('fitStatusText').textContent = `Unsafe: ${violations}`;
+
+                    // Handle Safe Route
+                    if (data.safe_route_search && data.safe_route_search.found) {
+                        this.displaySafeRoute(data.safe_route, data.safe_route_search);
+                    } else {
+                        this.generateAlternativeRoutes(); // Fallback to standard alternatives if no safe route found
+                    }
+                }
+            }
+
+            displaySafeRoute(safeRoute, searchMetadata) {
+                // Show alternative routes section
+                getElement('alternativeRouteSection').style.display = 'block';
+                getElement('alternativeRoutesAvailable').style.display = 'block';
+                getElement('noAlternativeRoutes').style.display = 'none';
+
+                const attempts = searchMetadata.attempts || 1;
+                getElement('routeCountText').textContent = `Quantum Safe Route Found (after ${attempts} attempts)`;
+                getElement('routeCountText').style.color = 'var(--success)';
+
+                // Clear and populate route options
+                const routeOptionsContainer = getElement('routeOptions');
+                routeOptionsContainer.innerHTML = '';
+
+                const routeButton = document.createElement('button');
+                routeButton.className = 'btn ghost';
+                routeButton.style.fontSize = '12px';
+                routeButton.style.padding = '8px 12px';
+                routeButton.style.justifyContent = 'flex-start';
+                routeButton.style.border = '1px solid var(--success)';
+                routeButton.style.background = '#f0fff4';
+
+                const badgeHtml = `
+                    <span style="font-size:10px;background:var(--success);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
+                        <i class="fa-solid fa-check"></i> Verified Safe
+                    </span>
+                `;
+
+                // Calculate distance/freq if available (or use raw data)
+                const distance = safeRoute.summary ? (safeRoute.summary.distance / 1000).toFixed(2) : (safeRoute.distance_km || '?');
+                const duration = safeRoute.summary ? Math.round(safeRoute.summary.duration / 60) : (safeRoute.duration_min || '?');
+
+                routeButton.innerHTML = `
+                    <div style="display:flex;align-items:center;width:100%;justify-content:space-between;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <i class="fa-solid fa-route" style="color:var(--success)"></i>
+                            <span>Safe Detour: ${distance} km · ${duration} min</span>
+                        </div>
+                        ${badgeHtml}
+                    </div>
+                    <div style="font-size:10px; color:#666; margin-top:4px; padding-left:20px;">
+                        Avoided: ${searchMetadata.history[searchMetadata.history.length - 1].avoidances.join(', ') || 'Standard hazards'}
+                    </div>
+                `;
+
+                routeButton.onclick = () => this.visualizeSafeRouteOnMap(safeRoute);
+                routeOptionsContainer.appendChild(routeButton);
+
+                // Automatically visualize it
+                this.visualizeSafeRouteOnMap(safeRoute);
+            }
+
+            visualizeSafeRouteOnMap(route) {
+                // Clear previous
+                this.alternativeRouteLines.forEach(line => this.map.removeLayer(line));
+                this.alternativeRouteLines = [];
+
+                let coordinates = [];
+                if (route.geometry && route.geometry.coordinates) {
+                    coordinates = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                } else if (route.route_points) {
+                    coordinates = route.route_points.map(p => [p.lat, p.lng]);
+                }
+
+                if (coordinates.length > 0) {
+                    const routeLine = L.polyline(coordinates, {
+                        color: '#10b981', // Emerald green
+                        weight: 6,
+                        opacity: 0.9,
+                        dashArray: '10 5'
+                    }).addTo(this.map);
+
+                    this.alternativeRouteLines.push(routeLine);
+                    this.map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
+                    this.toast('Visualizing Safe Route', 'success');
                 }
             }
 
