@@ -1370,7 +1370,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         },
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
         'options': {
-            'avoid_features': ['unpavedroads', 'tracks', 'fords', 'steps', 'ferries'],
+            'avoid_features': ['ferries', 'fords', 'steps'],
             'profile_params': {
                 'restrictions': {
                     'width': width,
@@ -1434,9 +1434,10 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         return {
             'success': len(parsed_routes) > 0,
             'routes': parsed_routes,
-            'count': len(parsed_routes)
+            'count': len(parsed_routes),
+            'attempts': 1 # HGV profile is a single attempt
         }
         
     except Exception as e:
         logger.error(f"Error in find_safe_route (HGV): {e}")
-        return {'success': False, 'routes': [], 'message': str(e)}
+        return {'success': False, 'routes': [], 'message': str(e), 'attempts': 1}
