@@ -503,13 +503,12 @@ def analyze_vehicle_fit_endpoint():
         safe_route_result = None
         
         if generate_alternatives and not fit_analysis['fits'] and route_points:
-            try:
-                # Need origin and destination for ORS
                 if len(route_points) >= 2:
                     origin = route_points[0]
                     destination = route_points[-1]
                     
-                    app.logger.info("Main route unfit. Starting iterative safe route search...")
+                    app.logger.info(f"Main route unfit (Fit: {fit_analysis['fits']}). Starting iterative safe route search...")
+                    app.logger.info(f"Vehicle Dimensions: {dimensions}")
                     
                     safe_route_result = find_safe_route(
                         origin, destination,
@@ -518,6 +517,13 @@ def analyze_vehicle_fit_endpoint():
                         app.logger,
                         max_attempts=2
                     )
+        else:
+             if fit_analysis['fits']:
+                 app.logger.info("Vehicle fits main route. Skipping alternative search.")
+             elif not generate_alternatives:
+                 app.logger.info("Alternative generation disabled by request.")
+             elif not route_points:
+                 app.logger.warning("No route points provided for alternative search.")
                     
                     # If we found a safe route, we can include it directly
                     if safe_route_result['success']:
