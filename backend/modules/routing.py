@@ -1363,9 +1363,14 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
-        'alternative_routes': {'target_count': 3},
+        'alternative_routes': {
+            'target_count': 3,
+            'share_factor': 0.6,
+            'weight_factor': 1.4
+        },
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
         'options': {
+            'avoid_features': ['unpavedroads', 'tracks', 'fords', 'steps', 'ferries'],
             'profile_params': {
                 'restrictions': {
                     'width': width,
