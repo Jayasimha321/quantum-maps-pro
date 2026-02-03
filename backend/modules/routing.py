@@ -178,6 +178,131 @@ def generate_synthetic_route(start_coords, end_coords, transport_mode):
         'duration_min': base_dist * 3  # Rough estimate of duration
     }
 
+# ============================================================================
+# PHASE 1: SEGMENT METADATA EXTRACTION
+# ============================================================================
+
+# ORS waytype codes to road type names
+WAYTYPE_CODES = {
+    0: 'unknown',
+    1: 'state_road',
+    2: 'road',
+    3: 'street',
+    4: 'path',
+    5: 'track',
+    6: 'cycleway',
+    7: 'footway',
+    8: 'steps',
+    9: 'ferry',
+    10: 'construction'
+}
+
+# ORS surface codes to surface names
+SURFACE_CODES = {
+    0: 'unknown',
+    1: 'paved',
+    2: 'unpaved',
+    3: 'asphalt',
+    4: 'concrete',
+    5: 'cobblestone',
+    6: 'metal',
+    7: 'wood',
+    8: 'compacted_gravel',
+    9: 'fine_gravel',
+    10: 'gravel',
+    11: 'dirt',
+    12: 'ground',
+    13: 'ice',
+    14: 'paving_stones',
+    15: 'sand',
+    16: 'woodchips',
+    17: 'grass',
+    18: 'grass_paver'
+}
+
+# Road type to estimated width (meters)
+ROAD_WIDTH_ESTIMATES = {
+    'state_road': 3.5,
+    'road': 3.2,
+    'street': 2.8,
+    'path': 1.8,
+    'track': 2.2,
+    'cycleway': 1.5,
+    'footway': 1.2,
+    'steps': 1.0,
+    'ferry': 10.0,
+    'construction': 2.5,
+    'unknown': 2.5
+}
+
+def extract_segment_metadata(ors_response):
+    """
+    Extract road segment metadata from ORS response extra_info.
+    Returns list of segments with road type, surface, and estimated width.
+    """
+    try:
+        properties = ors_response['features'][0]['properties']
+        extras = properties.get('extras', {})
+        
+        # Extract waytype info
+        waytypes_info = extras.get('waytypes', {}).get('values', [])
+        surface_info = extras.get('surface', {}).get('values', [])
+        
+        segments = []
+        
+        # Process waytypes
+        for waytype_entry in waytypes_info:
+            start_idx, end_idx, waytype_code = waytype_entry
+            road_type = WAYTYPE_CODES.get(waytype_code, 'unknown')
+            
+            segments.append({
+                'start_index': start_idx,
+                'end_index': end_idx,
+                'road_type': road_type,
+                'waytype_code': waytype_code,
+                'estimated_width': ROAD_WIDTH_ESTIMATES.get(road_type, 2.5),
+                'surface': 'unknown'  # Will be updated below
+            })
+        
+        # Merge surface info into segments
+        for surface_entry in surface_info:
+            start_idx, end_idx, surface_code = surface_entry
+            surface_name = SURFACE_CODES.get(surface_code, 'unknown')
+            
+            # Find matching segment and update surface
+            for segment in segments:
+                if segment['start_index'] <= start_idx and segment['end_index'] >= end_idx:
+                    segment['surface'] = surface_name
+                    break
+            else:
+                # Surface covers different range - add as separate entry
+                segments.append({
+                    'start_index': start_idx,
+                    'end_index': end_idx,
+                    'road_type': 'unknown',
+                    'surface': surface_name,
+                    'estimated_width': 2.5
+                })
+        
+        # Sort by start index
+        segments.sort(key=lambda x: x['start_index'])
+        
+        return {
+            'segments': segments,
+            'total_segments': len(segments),
+            'has_waytypes': len(waytypes_info) > 0,
+            'has_surface': len(surface_info) > 0
+        }
+        
+    except (KeyError, IndexError) as e:
+        logging.warning(f"Could not extract segment metadata: {e}")
+        return {
+            'segments': [],
+            'total_segments': 0,
+            'has_waytypes': False,
+            'has_surface': False
+        }
+
 def get_route_from_ors(start_coords, end_coords, transport_profile, config, logger):
     """
     Get a route between two points using the OpenRouteService API.
@@ -196,7 +321,9 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'instructions': 'true',
         'preference': 'recommended',
         'units': 'km',
-        'geometry': 'true'
+        'geometry': 'true',
+        # Request extra road info for vehicle fit analysis
+        'extra_info': ['waytypes', 'surface', 'roadaccessrestrictions']
     }
     
     try:
@@ -248,14 +375,19 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
                     'distance': step['distance'],
                     'duration': step['duration'],
                     'type': step['type'],
-                    'way_points': step['way_points'] # Indices into the geometry array for this segment
+                    'way_points': step['way_points'], # Indices into the geometry array for this segment
+                    'name': step.get('name', 'Unnamed Road')
                 })
+        
+        # Extract segment metadata from extra_info (if available)
+        segment_metadata = extract_segment_metadata(data)
         
         return {
             'route_points': unique_points,
             'distance_km': distance_meters / 1000.0,
             'duration_min': duration_seconds / 60.0,
-            'instructions': instructions
+            'instructions': instructions,
+            'segment_metadata': segment_metadata
         }
         
     except requests.exceptions.RequestException as e:
