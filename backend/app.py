@@ -550,22 +550,20 @@ def analyze_vehicle_fit_endpoint():
         }
         
         # Add iterative search results if available
+        # Add search results (list of alternatives)
         if safe_route_result:
             response['safe_route_search'] = {
                 'found': safe_route_result['success'],
-                'attempts': safe_route_result['attempts'],
-                'message': safe_route_result.get('message', ''),
-                'final_fit_analysis': safe_route_result.get('fit_analysis'),
-                'history': [{
-                    'attempt': a['attempt'],
-                    'fits': a.get('fits'),
-                    'violations': [v['type'] for v in a.get('violations', [])],
-                    'avoidances': a.get('avoidances_used')
-                } for a in safe_route_result.get('all_attempts', [])]
+                'count': safe_route_result['count'],
+                'routes': safe_route_result['routes']
             }
             
             if safe_route_result['success']:
-                response['safe_route'] = safe_route_result['route']
+                # Find first safe route
+                for r in safe_route_result['routes']:
+                    if r.get('is_safe'):
+                        response['safe_route'] = r
+                        break
         # Add metadata fields
         response['vehicle_dimensions'] = dimensions
         response['overpass_available'] = OVERPASS_AVAILABLE

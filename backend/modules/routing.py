@@ -345,7 +345,55 @@ def decode_polyline(polyline_str):
 
     return coordinates
 
-def get_route_from_ors(start_coords, end_coords, transport_profile, config, logger):
+def _parse_single_route(geometry, summary, segments, data):
+    """Helper to parse a single route object into consistent format."""
+    distance_meters = summary['distance']
+    duration_seconds = summary['duration']
+    
+    # Remove duplicate points from route
+    unique_points = []
+    seen_points = set()
+    for lng, lat in geometry:
+        point_key = f"{lat:.6f},{lng:.6f}"
+        if point_key not in seen_points:
+            unique_points.append({'lat': lat, 'lng': lng})
+            seen_points.add(point_key)
+    
+    # Extract navigation instructions
+    instructions = []
+    for segment in segments:
+        for step in segment['steps']:
+            instructions.append({
+                'instruction': step['instruction'],
+                'distance': step['distance'],
+                'duration': step['duration'],
+                'type': step['type'],
+                'way_points': step['way_points'], # Indices into the geometry array for this segment
+                'name': step.get('name', 'Unnamed Road')
+            })
+    
+    # Extract segment metadata from extra_info (if available)
+    # Note: 'data' passed here should be the root response for global metadata, 
+    # but per-route metadata might be in 'extras' inside the route?
+    # ORS usually returns extras at segment level.
+    # We'll use the existing global extractor for now, but apply it carefully.
+    # Actually, existing extract_segment_metadata parses 'features' or 'routes' from root.
+    # If we have multiple routes, we need to extract metadata SPECIFIC to this route.
+    # For now, let's keep it simple and re-use global metadata extractor if possible, 
+    # or just skip enhanced metadata for alternatives if complex.
+    # BUT, vehicle fit needs metadata!
+    # Let's inspect extract_segment_metadata later.
+    segment_metadata = extract_segment_metadata(data) 
+    
+    return {
+        'route_points': unique_points,
+        'distance_km': distance_meters / 1000.0,
+        'duration_min': duration_seconds / 60.0,
+        'instructions': instructions,
+        'segment_metadata': segment_metadata
+    }
+
+def get_route_from_ors(start_coords, end_coords, transport_profile, config, logger, alternatives=False):
     """
     Get a route between two points using the OpenRouteService API.
     """
@@ -364,9 +412,19 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
+        'geometry_format': 'geojson',
         # Request extra road info for vehicle fit analysis (ORS uses singular 'waytype')
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions']
     }
+    
+    if alternatives:
+        payload['alternative_routes'] = {'target_count': 3}
+    
+    # Check if geometry_format is supported/needed (JSON key order might matter for replace)
+    payload['geometry_format'] = 'geojson'
+    
+    if alternatives:
+        payload['alternative_routes'] = {'target_count': 3}
     
     try:
         url = f"https://api.openrouteservice.org/v2/directions/{transport_profile}"
@@ -393,69 +451,51 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         
         data = response.json()
         
-        # Handle both GeoJSON, standard JSON, and Encoded Polyline formats
-        geometry = []
-        segments = []
-        summary = {}
+        # Handle both GeoJSON and standard JSON formats from ORS
+        parsed_routes = []
+        
+        raw_routes = []
         
         if 'features' in data:
-            # GeoJSON format
-            geometry = data['features'][0]['geometry']['coordinates']
-            route_props = data['features'][0]['properties']
-            summary = route_props['summary']
-            segments = route_props.get('segments', [])
-        elif 'routes' in data:
-            # Standard JSON format
-            route_data = data['routes'][0]
-            
-            # Handle geometry: standard JSON often returns encoded polyline string
-            raw_geometry = route_data.get('geometry')
-            if isinstance(raw_geometry, str):
-                geometry = decode_polyline(raw_geometry)
-            else:
-                geometry = raw_geometry if raw_geometry else []
+            # GeoJSON format (List of features)
+            raw_routes = data['features']
+            for feature in raw_routes:
+                geometry = feature['geometry']['coordinates']
+                route_props = feature['properties']
+                summary = route_props['summary']
+                segments = route_props.get('segments', [])
                 
-            summary = route_data['summary']
-            segments = route_data.get('segments', [])
+                # Mock a data object for metadata extraction (hacky but reuses existing logic)
+                mock_data = {'features': [feature]}
+                
+                parsed_routes.append(_parse_single_route(geometry, summary, segments, mock_data))
+                
+        elif 'routes' in data:
+            # Standard JSON format (List of routes)
+            raw_routes = data['routes']
+            for route in raw_routes:
+                # Handle geometry: standard JSON often returns encoded polyline string
+                raw_geometry = route.get('geometry')
+                if isinstance(raw_geometry, str):
+                    geometry = decode_polyline(raw_geometry)
+                else:
+                    geometry = raw_geometry if raw_geometry else []
+                    
+                summary = route['summary']
+                segments = route.get('segments', [])
+                 
+                # Mock data for metadata
+                mock_data = {'routes': [route]}
+                
+                parsed_routes.append(_parse_single_route(geometry, summary, segments, mock_data))
         else:
             logger.error(f"Unknown ORS response format. Keys: {list(data.keys())}")
             return None
-        
-        distance_meters = summary['distance']
-        duration_seconds = summary['duration']
-        
-        # Remove duplicate points from route
-        unique_points = []
-        seen_points = set()
-        for lng, lat in geometry:
-            point_key = f"{lat:.6f},{lng:.6f}"
-            if point_key not in seen_points:
-                unique_points.append({'lat': lat, 'lng': lng})
-                seen_points.add(point_key)
-        
-        # Extract navigation instructions
-        instructions = []
-        for segment in segments:
-            for step in segment['steps']:
-                instructions.append({
-                    'instruction': step['instruction'],
-                    'distance': step['distance'],
-                    'duration': step['duration'],
-                    'type': step['type'],
-                    'way_points': step['way_points'], # Indices into the geometry array for this segment
-                    'name': step.get('name', 'Unnamed Road')
-                })
-        
-        # Extract segment metadata from extra_info (if available)
-        segment_metadata = extract_segment_metadata(data)
-        
-        return {
-            'route_points': unique_points,
-            'distance_km': distance_meters / 1000.0,
-            'duration_min': duration_seconds / 60.0,
-            'instructions': instructions,
-            'segment_metadata': segment_metadata
-        }
+            
+        if alternatives:
+            return parsed_routes
+        else:
+            return parsed_routes[0] if parsed_routes else None
         
     except requests.exceptions.RequestException as e:
         logger.error(f"ORS API request failed: {e}")
@@ -1067,46 +1107,40 @@ def generate_vehicle_safe_alternatives(origin, destination, vehicle_dimensions, 
     return alternatives
 
 
-def request_route_with_avoidance(origin, destination, avoid_features, config, logger):
+def request_route_with_avoidance(origin, destination, avoid_features, config, logger, alternatives=False):
     """
-    Request a route from ORS with specific features avoided.
-    
-    Args:
-        origin: {'lat': float, 'lng': float}
-        destination: {'lat': float, 'lng': float}
-        avoid_features: list of ORS avoid feature names
-        config: app config dict
-        logger: logging instance
-    
-    Returns:
-        Route dict or None if failed
+    Request a route from ORS with specific features to avoid.
     """
-    import requests
-    
-    headers = {
-        'Authorization': config.get('ORS_API_KEY', ''),
-        'Content-Type': 'application/json; charset=utf-8',
-        'Accept': 'application/json, application/geo+json'
-    }
-    
-    payload = {
-        'coordinates': [
-            [origin['lng'], origin['lat']],
-            [destination['lng'], destination['lat']]
-        ],
-        'instructions': 'true',
-        'preference': 'recommended',
-        'units': 'km',
-        'geometry': 'true',
-        'extra_info': ['waytype', 'surface'],
-        'options': {
-            'avoid_features': avoid_features
-        }
-    }
-    
     try:
-        url = "https://api.openrouteservice.org/v2/directions/driving-car"
-        logger.info(f"Requesting alternative route avoiding: {avoid_features}")
+        # Build transport profile - usually driving-car
+        transport_profile = config['ORS_PROFILES'].get('driving', 'driving-car')
+        
+        headers = {
+            'Authorization': config.get('ORS_API_KEY', ''),
+            'Content-Type': 'application/json; charset=utf-8'
+        }
+        
+        payload = {
+            'coordinates': [
+                [origin['lng'], origin['lat']],
+                [destination['lng'], destination['lat']]
+            ],
+            'instructions': 'true',
+            'preference': 'recommended',
+            'units': 'km',
+            'geometry': 'true',
+            'geometry_format': 'geojson',
+            'extra_info': ['waytype', 'surface'],
+            'options': {
+                'avoid_features': avoid_features
+            }
+        }
+        
+        if alternatives:
+            payload['alternative_routes'] = {'target_count': 3}
+            
+        url = f"https://api.openrouteservice.org/v2/directions/{transport_profile}"
+        # logger.info(f"Requesting avoidance route (avoiding {avoid_features})")
         
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         
@@ -1116,7 +1150,39 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         
         data = response.json()
         
-        # Extract route data - handle both GeoJSON, standard JSON, and Encoded Polyline formats
+        # Use common parsing logic if possible, or replicate for this specific function?
+        # Actually, this function largely duplicates get_route_from_ors logic but adds 'options'.
+        # We should ideally unify, but to avoid breaking things, let's just handle parsing here too.
+        
+        if alternatives:
+             # Parse multiple routes
+            parsed_routes = []
+            if 'features' in data:
+                 for feature in data['features']:
+                     # Extract logic similar to _parse_single_route
+                     geometry = feature['geometry']['coordinates']
+                     route_props = feature['properties']
+                     summary = route_props['summary']
+                     segments = route_props.get('segments', [])
+                     mock_data = {'features': [feature]}
+                     parsed_routes.append(_parse_single_route(geometry, summary, segments, mock_data))
+            elif 'routes' in data:
+                 for route in data['routes']:
+                     # Standard JSON parsing
+                     raw_geometry = route.get('geometry')
+                     if isinstance(raw_geometry, str):
+                        geometry = decode_polyline(raw_geometry)
+                     else:
+                        geometry = raw_geometry if raw_geometry else []
+                     summary = route['summary']
+                     segments = route.get('segments', [])
+                     mock_data = {'routes': [route]}
+                     parsed_routes.append(_parse_single_route(geometry, summary, segments, mock_data))
+            
+            return parsed_routes
+                     
+        
+        # Single route parsing (existing logic)
         geometry = []
         segments = []
         summary = {}
@@ -1160,6 +1226,7 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
     except Exception as e:
         logger.error(f"Error requesting avoidance route: {e}")
         return None
+
 
 
 def get_recommended_avoidance(vehicle_dimensions):
@@ -1243,8 +1310,8 @@ def get_avoidances_from_violations(violations):
 
 def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max_attempts=3):
     """
-    Iteratively find a route that fits the vehicle constraints.
-    Loops: Get Route -> Check Overpass Fits -> If No, Add Avoidance -> Repeat
+    Fetch alternative routes from ORS and analyze them for vehicle fit.
+    Returns ALL valid routes found (safe or not).
     
     Args:
         origin: {'lat': float, 'lng': float}
@@ -1252,10 +1319,10 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         vehicle_dimensions: dict with constraints
         config: config dict
         logger: logger instance
-        max_attempts: max iterations
+        max_attempts: ignored (kept for compatibility signature)
         
     Returns:
-        dict with success, route, fit_analysis, attempts
+        dict with success, routes (list)
     """
     # Import Overpass client here to avoid circular imports
     try:
@@ -1263,98 +1330,50 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         OVERPASS_AVAILABLE = True
     except ImportError:
         OVERPASS_AVAILABLE = False
-        logger.warning("Overpass client not available, skipping enhanced checks in find_safe_route")
+        logger.warning("Overpass client not available")
 
-    tried_avoidances = set()
+    # Request alternatives from ORS
+    logger.info("Requesting 3 alternative routes from ORS...")
     
-    # Pre-populate with recommended avoidances
-    initial_recommendations = get_recommended_avoidance(vehicle_dimensions)
-    if initial_recommendations:
-        tried_avoidances.update(initial_recommendations)
+    # We use empty avoid_features to get standard alternatives
+    routes = request_route_with_avoidance(origin, destination, [], config, logger, alternatives=True)
     
-    all_attempts = []
+    if not routes or not isinstance(routes, list):
+        logger.warning("ORS returned no alternatives.")
+        return {'success': False, 'routes': []}
+        
+    logger.info(f"ORS returned {len(routes)} routes. Analyzing fit...")
     
-    for attempt in range(max_attempts):
-        logger.info(f"Safe Route Search Attempt {attempt + 1}/{max_attempts}. Avoiding: {list(tried_avoidances)}")
+    analyzed_routes = []
+    
+    for i, route in enumerate(routes):
+        route_points = route['route_points']
+        segment_metadata = route['segment_metadata']
         
-        # Step 1: Generate route
-        current_avoidances = list(tried_avoidances)
-        match_route = request_route_with_avoidance(origin, destination, current_avoidances, config, logger)
-        
-        if not match_route:
-            all_attempts.append({'attempt': attempt + 1, 'error': 'ORS failed to generate route', 'avoidances': current_avoidances})
-            break
-            
-        route_points = match_route['route_points']
-        segment_metadata = match_route['segment_metadata']
-        
-        # Step 2: Get Overpass constraints
+        # Get Overpass constraints
         osm_constraints = []
         if OVERPASS_AVAILABLE:
             try:
                 all_constraints = get_road_constraints_along_route(route_points)
                 osm_constraints = find_constraints_on_route(route_points, all_constraints)
             except Exception as e:
-                logger.warning(f"Overpass query failed in loop: {e}")
+                logger.warning(f"Overpass query failed for route {i}: {e}")
         
-        # Step 3: Analyze Fit
+        # Analyze Fit
         fit_result = analyze_vehicle_fit_v2(vehicle_dimensions, route_points, segment_metadata, osm_constraints)
         
-        # Record attempt
-        attempt_record = {
-            'attempt': attempt + 1,
-            'fits': fit_result['fits'],
-            'violations': fit_result['violations'],
-            'avoidances_used': current_avoidances,
-            'summary': fit_result['summary']
-        }
-        all_attempts.append(attempt_record)
+        route['fit_analysis'] = fit_result
+        route['is_safe'] = fit_result['fits']
+        route['id'] = i  # Simple ID
         
-        # Step 4: Check success
-        if fit_result['fits']:
-            logger.info(f"✅ Safe route found on attempt {attempt + 1}")
-            match_route['fit_analysis'] = fit_result
-            return {
-                'success': True,
-                'route': match_route,
-                'fit_analysis': fit_result,
-                'attempts': attempt + 1,
-                'all_attempts': all_attempts
-            }
+        analyzed_routes.append(route)
         
-        # Step 5: Prepare next attempt
-        new_avoidances = get_avoidances_from_violations(fit_result['violations'])
-        
-        # If no new restrictions can be added, stop early
-        if not new_avoidances:
-            logger.info("No new avoidances can be determined. Stopping search.")
-            break
-            
-        # If we already tried these avoidances, stop to prevent infinite loops (or useless same requests)
-        # But we accumulate, so we check if the SET matches coverage. 
-        # Actually simplest check: did we add anything NEW this time?
-        added_new = False
-        for avoid in new_avoidances:
-            if avoid not in tried_avoidances:
-                tried_avoidances.add(avoid)
-                added_new = True
-        
-        if not added_new:
-            logger.info("Violations yielded no new avoid features. Stopping search.")
-            break
-            
-    # If we get here, we failed to find a perfectly safe route
-    logger.warning("❌ Failed to find safe route after max attempts")
-    
-    # Return the best effort (usually the last one, or the one with fewest violations)
-    # Simple logic: return last one
-    best_attempt = all_attempts[-1] if all_attempts else None
+    # Check if we have at least one safe route
+    safe_count = len([r for r in analyzed_routes if r['is_safe']])
+    logger.info(f"Analysis complete. Safe routes found: {safe_count}/{len(analyzed_routes)}")
     
     return {
-        'success': False,
-        'message': f"No fully safe route found after {len(all_attempts)} attempts",
-        'route': match_route if 'match_route' in locals() and match_route else None,
-        'fit_analysis': fit_result if 'fit_result' in locals() else None,
-        'attempts': len(all_attempts),
-        'all_attempts': all_attempts
+        'success': safe_count > 0,
+        'routes': analyzed_routes,
+        'count': len(analyzed_routes)
     }

@@ -3557,7 +3557,8 @@
                     getElement('fitStatusText').textContent = `Unsafe: ${violations}`;
 
                     // Handle Safe Route
-                    if (data.safe_route_search && data.safe_route_search.found) {
+                    // Handle Safe Route & Alternatives
+                    if (data.safe_route_search && (data.safe_route_search.found || (data.safe_route_search.routes && data.safe_route_search.routes.length > 0))) {
                         this.displaySafeRoute(data.safe_route, data.safe_route_search);
                     } else {
                         this.generateAlternativeRoutes(); // Fallback to standard alternatives if no safe route found
@@ -3571,50 +3572,84 @@
                 getElement('alternativeRoutesAvailable').style.display = 'block';
                 getElement('noAlternativeRoutes').style.display = 'none';
 
-                const attempts = searchMetadata.attempts || 1;
-                getElement('routeCountText').textContent = `Quantum Safe Route Found (after ${attempts} attempts)`;
-                getElement('routeCountText').style.color = 'var(--success)';
+                const routes = searchMetadata.routes || [];
+                const safeCount = routes.filter(r => r.is_safe).length;
+                const totalCount = routes.length;
+
+                getElement('routeCountText').textContent = `${totalCount} analyzed options (${safeCount} safe)`;
+                getElement('routeCountText').style.color = safeCount > 0 ? 'var(--success)' : 'var(--warning)';
 
                 // Clear and populate route options
                 const routeOptionsContainer = getElement('routeOptions');
                 routeOptionsContainer.innerHTML = '';
 
-                const routeButton = document.createElement('button');
-                routeButton.className = 'btn ghost';
-                routeButton.style.fontSize = '12px';
-                routeButton.style.padding = '8px 12px';
-                routeButton.style.justifyContent = 'flex-start';
-                routeButton.style.border = '1px solid var(--success)';
-                routeButton.style.background = '#f0fff4';
+                // If no routes in metadata but safeRoute exists (legacy implicit), wrap it
+                if (routes.length === 0 && safeRoute) {
+                    routes.push(safeRoute);
+                }
 
-                const badgeHtml = `
-                    <span style="font-size:10px;background:var(--success);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
-                        <i class="fa-solid fa-check"></i> Verified Safe
-                    </span>
-                `;
+                routes.forEach((route, index) => {
+                    const isSafe = route.is_safe || (route === safeRoute); // Fallback assumption
+                    const routeButton = document.createElement('button');
+                    routeButton.className = 'btn ghost';
+                    routeButton.style.fontSize = '12px';
+                    routeButton.style.padding = '8px 12px';
+                    routeButton.style.justifyContent = 'flex-start';
+                    routeButton.style.border = isSafe ? '1px solid var(--success)' : '1px solid var(--warning)';
+                    routeButton.style.background = isSafe ? '#f0fff4' : '#fffbf0';
+                    routeButton.style.marginTop = '6px';
+                    routeButton.style.width = '100%';
 
-                // Calculate distance/freq if available (or use raw data)
-                const distance = safeRoute.summary ? (safeRoute.summary.distance / 1000).toFixed(2) : (safeRoute.distance_km || '?');
-                const duration = safeRoute.summary ? Math.round(safeRoute.summary.duration / 60) : (safeRoute.duration_min || '?');
+                    const badgeHtml = isSafe ? `
+                        <span style="font-size:10px;background:var(--success);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
+                            <i class="fa-solid fa-check"></i> Safe
+                        </span>
+                    ` : `
+                        <span style="font-size:10px;background:var(--warning);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Risks
+                        </span>
+                    `;
 
-                routeButton.innerHTML = `
-                    <div style="display:flex;align-items:center;width:100%;justify-content:space-between;">
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <i class="fa-solid fa-route" style="color:var(--success)"></i>
-                            <span>Safe Detour: ${distance} km · ${duration} min</span>
+                    // Calculate distance/freq if available (or use raw data)
+                    const distance = route.summary ? (route.summary.distance / 1000).toFixed(2) : (route.distance_km || '?');
+                    const duration = route.summary ? Math.round(route.summary.duration / 60) : (route.duration_min ? parseFloat(route.duration_min).toFixed(0) : '?');
+
+                    // Avoidance info
+                    let avoidanceText = 'Standard route';
+                    if (route.fit_analysis && !route.fit_analysis.fits) {
+                        avoidanceText = route.fit_analysis.violations.length + ' violations';
+                    } else if (index > 0) {
+                        avoidanceText = 'Alternative ' + (index + 1);
+                    }
+
+                    routeButton.innerHTML = `
+                        <div style="display:flex;align-items:center;width:100%;justify-content:space-between;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <i class="fa-solid fa-route" style="color:${isSafe ? 'var(--success)' : 'var(--warning)'}"></i>
+                                <span>${distance} km · ${duration} min</span>
+                            </div>
+                            ${badgeHtml}
                         </div>
-                        ${badgeHtml}
-                    </div>
-                    <div style="font-size:10px; color:#666; margin-top:4px; padding-left:20px;">
-                        Avoided: ${searchMetadata.history[searchMetadata.history.length - 1].avoidances.join(', ') || 'Standard hazards'}
-                    </div>
-                `;
+                        <div style="font-size:10px; color:#666; margin-top:4px; padding-left:20px;">
+                            ${avoidanceText}
+                        </div>
+                    `;
 
-                routeButton.onclick = () => this.visualizeSafeRouteOnMap(safeRoute);
-                routeOptionsContainer.appendChild(routeButton);
+                    routeButton.onclick = () => {
+                        this.visualizeSafeRouteOnMap(route);
+                        // Highlight selected button
+                        Array.from(routeOptionsContainer.children).forEach(btn => btn.style.boxShadow = 'none');
+                        routeButton.style.boxShadow = '0 0 0 2px var(--primary)';
+                    };
 
-                // Automatically visualize it
-                this.visualizeSafeRouteOnMap(safeRoute);
+                    routeOptionsContainer.appendChild(routeButton);
+                });
+
+                // Automatically visualize the first safe route, or the first route if none safe
+                const defaultRoute = routes.find(r => r.is_safe) || routes[0];
+                if (defaultRoute) {
+                    this.visualizeSafeRouteOnMap(defaultRoute);
+                }
             }
 
             visualizeSafeRouteOnMap(route) {
