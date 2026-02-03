@@ -1335,119 +1335,196 @@ def get_avoidances_from_violations(violations):
     return list(set(avoid))
 
 
-def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max_attempts=3):
+def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max_attempts=5):
     """
-    Fetch alternative routes using the 'driving-hgv' profile from ORS.
-    This profile natively filters out roads that cannot accommodate the vehicle dimensions.
-    """
-    logger.info(f"Requesting HGV-safe routes for vehicle: {vehicle_dimensions}")
+    Iteratively find alternative routes using the 'driving-hgv' profile.
     
-    # Extract vehicle dimensions
+    Strategy:
+    1. Fetch initial routes (alternatives=3).
+    2. detailed loop:
+       - Pick the primary route.
+       - Identify a 'choke point' (midpoint) to block.
+       - specific 'avoid_polygons' request to ORS to find path around it.
+       - distinct routes collected.
+    3. Verify collected routes with Overpass.
+    4. Return best candidates.
+    """
+    logger.info(f"Targeting {max_attempts} iterations for route discovery...")
+    
+    # Extract dimensions
     width = vehicle_dimensions.get('width', 2.0)
     height = vehicle_dimensions.get('height', 2.0)
     weight = vehicle_dimensions.get('weight', 3.5)
     length = vehicle_dimensions.get('length', 5.0)
     
-    # Smart axle load calculation based on weight class
+    # Smart axle load
     axle_count = vehicle_dimensions.get('axle_count', 2 if weight < 7.5 else 3 if weight < 15 else 5)
     axleload = round(weight / axle_count, 2)
-    logger.info(f"Calculated axle load: {axleload}t (assuming {axle_count} axles for {weight}t vehicle)")
     
-    # Valid avoid_features for driving-hgv profile (per ORS documentation)
+    # HGV Avoid Features
     HGV_VALID_AVOID_FEATURES = {'ferries', 'highways', 'tollways', 'fords'}
-    requested_features = ['ferries', 'fords']
+    requested_features = ['ferries', 'fords'] # Default preferences
     valid_features = [f for f in requested_features if f in HGV_VALID_AVOID_FEATURES]
     
-    # Construct ORS HGV Profile Payload
+    # Session setup
     headers = {
         'Authorization': config.get('ORS_API_KEY', ''),
         'Content-Type': 'application/json; charset=utf-8'
     }
+    url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
     
-    payload = {
-        'coordinates': [
-            [origin['lng'], origin['lat']],
-            [destination['lng'], destination['lat']]
-        ],
-        'profile': 'driving-hgv',
-        'preference': 'recommended',
-        'units': 'km',
-        'geometry': 'true',
-        'alternative_routes': {
-            'target_count': 3,
-            'share_factor': 0.6,
-            'weight_factor': 1.4
-        },
-        'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
-        'options': {
-            'profile_params': {
-                'restrictions': {
-                    'width': width,
-                    'height': height,
-                    'weight': weight,
-                    'length': length,
-                    'axleload': axleload
+    all_candidates = []
+    seen_route_hashes = set()
+    avoid_polygons = [] # List of bbox lists
+    
+    # Iteration Loop
+    for attempt in range(max_attempts):
+        if len(all_candidates) >= 20: 
+            break
+            
+        logger.info(f"Iteration {attempt+1}/{max_attempts}: Requesting routes...")
+        
+        # dynamic payload
+        payload = {
+            'coordinates': [[origin['lng'], origin['lat']], [destination['lng'], destination['lat']]],
+            'profile': 'driving-hgv',
+            'preference': 'recommended',
+            'units': 'km',
+            'geometry': 'true',
+            'alternative_routes': {'target_count': 3, 'share_factor': 0.6, 'weight_factor': 1.4},
+            'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
+            'options': {
+                'profile_params': {
+                    'restrictions': {
+                        'width': width, 'height': height, 'weight': weight, 'length': length, 'axleload': axleload
+                    }
                 }
             }
         }
-    }
-    
-    # Only add avoid_features if we have valid ones
-    if valid_features:
-        payload['options']['avoid_features'] = valid_features
-    
-    try:
-        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
         
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        
-        if response.status_code != 200:
-            logger.warning(f"ORS HGV Request Failed: {response.status_code} - {response.text}")
+        if valid_features:
+            payload['options']['avoid_features'] = valid_features
             
-            # Graceful fallback to driving-car profile
-            if response.status_code == 400:
-                logger.info("Attempting fallback to driving-car profile (no dimension filtering)")
-                fallback_payload = {
-                    'coordinates': payload['coordinates'],
-                    'profile': 'driving-car',
-                    'preference': 'recommended',
-                    'units': 'km',
-                    'geometry': 'true',
-                    'alternative_routes': payload['alternative_routes']
+        # Add avoid polygons (accumulated from previous iterations)
+        if avoid_polygons:
+            # Only use the last 1-2 polygons to avoid over-constraining? 
+            # Or use all? Let's use the most recent one to just "nudge" it differently each time
+            # ORS options.avoid_polygons structure:
+            # { "type": "MultiPolygon", "coordinates": [ [ [[lon,lat],...] ] ] }
+            current_avoid = avoid_polygons[-1] if avoid_polygons else None
+            if current_avoid:
+                payload['options']['avoid_polygons'] = {
+                    "type": "MultiPolygon",
+                    "coordinates": [[current_avoid]]
                 }
-                fallback_url = "https://api.openrouteservice.org/v2/directions/driving-car"
-                fallback_response = requests.post(fallback_url, json=fallback_payload, headers=headers, timeout=30)
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=20)
+            
+            if response.status_code == 200:
+                data = response.json()
+                new_routes = _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=True)
                 
-                if fallback_response.status_code == 200:
-                    data = fallback_response.json()
-                    parsed_routes = _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=False)
-                    return {
-                        'success': len(parsed_routes) > 0,
-                        'routes': parsed_routes,
-                        'count': len(parsed_routes),
-                        'attempts': 1,
-                        'warning': 'HGV profile unavailable. Used car profile—route may not respect vehicle dimensions.',
-                        'profile_used': 'driving-car'
-                    }
+                added_count = 0
+                for r in new_routes:
+                    # Create signature based on geometry (first/mid/last points)
+                    # Simple hash of geometry string
+                    geom_sig = str(r['geometry']['coordinates'][::10]) # Sample every 10th point for signature
+                    if geom_sig not in seen_route_hashes:
+                        seen_route_hashes.add(geom_sig)
+                        all_candidates.append(r)
+                        added_count += 1
+                
+                logger.info(f"Iteration {attempt+1}: Found {len(new_routes)} routes, {added_count} unique.")
+                
+                # PREPARE NEXT ITERATION: Checkpoint blocking
+                # Pick the first route from this batch to block
+                if new_routes:
+                    target_route = new_routes[0]
+                    coords = target_route['geometry']['coordinates']
+                    # Pick midpoint
+                    mid_idx = len(coords) // 2
+                    mid_pt = coords[mid_idx] # [lon, lat]
+                    
+                    # Create a small bbox (approx 500m)
+                    # 0.005 degrees ~= 500m
+                    delta = 0.005
+                    bbox = [
+                        [mid_pt[0] - delta, mid_pt[1] - delta],
+                        [mid_pt[0] + delta, mid_pt[1] - delta],
+                        [mid_pt[0] + delta, mid_pt[1] + delta],
+                        [mid_pt[0] - delta, mid_pt[1] + delta],
+                        [mid_pt[0] - delta, mid_pt[1] - delta] # Close loop
+                    ]
+                    avoid_polygons.append(bbox)
+                    
+            elif response.status_code == 400: # Bad Request (constraints too strict?)
+                 logger.warning("ORS 400 Error - likely constraints impossible. Stopping iteration.")
+                 break
+            else:
+                 logger.warning(f"ORS Error {response.status_code}. Retrying...")
+                 
+        except Exception as e:
+            logger.error(f"Iteration {attempt+1} failed: {e}")
             
-            return {'success': False, 'routes': [], 'message': f"ORS Error: {response.status_code}", 'attempts': 1}
-            
-        data = response.json()
+    # Fallback if no HGV routes found at all
+    if not all_candidates:
+        logger.warning("No HGV routes found. Fallback to car profile.")
+        # ... (Simple car fallback logic can remain here or be simplified)
+        # For Brevity, returning empty fail or handled by caller? 
+        # Let's try one simple car request
+        try:
+            fallback_payload = payload.copy()
+            fallback_payload['profile'] = 'driving-car'
+            del fallback_payload['options'] # Remove HGV options
+            res = requests.post("https://api.openrouteservice.org/v2/directions/driving-car", json=fallback_payload, headers=headers, timeout=30)
+            if res.status_code == 200:
+                return {
+                    'success': True,
+                    'routes': _parse_ors_routes(res.json(), vehicle_dimensions, False),
+                    'count': 1,
+                    'attempts': 1,
+                    'warning': 'HGV profile failed. Car profile used.'
+                }
+        except:
+             pass
+        return {'success': False, 'routes': [], 'attempts': max_attempts}
+
+    # Verify Logic: Check constraints for top candidates (limit to TOP 10 to save time)
+    logger.info(f"Verifying constraints for {len(all_candidates)} candidates...")
+    verified_candidates = []
+    
+    # Sort by duration first to prioritize checking good routes
+    all_candidates.sort(key=lambda x: x['summary']['duration'])
+    
+    for route in all_candidates[:10]: # Verify top 10
+        route_points = [{'lat': c[1], 'lng': c[0]} for c in route['geometry']['coordinates']]
         
-        # Parse Routes using helper function
-        parsed_routes = _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=True)
+        # Call Overpass Verification
+        verification = verify_route_constraints(route_points, vehicle_dimensions, logger)
         
-        return {
-            'success': len(parsed_routes) > 0,
-            'routes': parsed_routes,
-            'count': len(parsed_routes),
-            'attempts': 1,
-            'profile_used': 'driving-hgv'
-        }
+        # Enhance route object
+        route['violations'] = verification['violations']
+        route['is_safe'] = len(verification['violations']) == 0
+        route['osm_constraints'] = verification['constraints_found']
         
-    except Exception as e:
-        logger.error(f"Error in find_safe_route (HGV): {e}")
-        return {'success': False, 'routes': [], 'message': str(e), 'attempts': 1}
+        verified_candidates.append(route)
+        
+    # Final Sorting:
+    # 1. Safety (Safe first)
+    # 2. Distance/Duration (Shortest first)
+    verified_candidates.sort(key=lambda x: (not x['is_safe'], x['summary']['duration']))
+    
+    # Return top results (User asked for best 2)
+    best_results = verified_candidates
+    
+    return {
+        'success': True,
+        'routes': best_results, # Return all verified, caller can slice
+        'count': len(best_results),
+        'attempts': max_attempts,
+        'profile_used': 'driving-hgv-iterative'
+    }
 
 
 def _parse_ors_routes(data, vehicle_dimensions, is_hgv_verified=True):

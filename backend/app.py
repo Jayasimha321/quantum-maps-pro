@@ -540,7 +540,7 @@ def analyze_vehicle_fit_endpoint():
                         dimensions,
                         app.config,
                         app.logger,
-                        max_attempts=2
+                        max_attempts=7
                     )
                     
                     # Log result
@@ -579,7 +579,7 @@ def analyze_vehicle_fit_endpoint():
             response['safe_route_search'] = {
                 'found': safe_route_result['success'],
                 'count': safe_route_result['count'],
-                'routes': safe_route_result['routes']
+                'routes': safe_route_result['routes'][:2] # Return best 2 as requested
             }
             
             if safe_route_result['success']:
