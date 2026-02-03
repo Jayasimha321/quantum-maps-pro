@@ -21,7 +21,8 @@ from modules.routing import (
     extract_segment_metadata,
     analyze_vehicle_fit_v2,
     generate_vehicle_safe_alternatives,
-    get_recommended_avoidance
+    get_recommended_avoidance,
+    find_safe_route
 )
 from modules.quantum_solver_simple import solve_tsp_quantum, solve_tsp_classical_fallback
 
@@ -497,9 +498,10 @@ def analyze_vehicle_fit_endpoint():
         )
         
         # ==========================================
-        # PHASE 4: Generate alternatives if needed
+        # PHASE 4: Iterative Safe Route Search
         # ==========================================
-        alternatives = []
+        safe_route_result = None
+        
         if generate_alternatives and not fit_analysis['fits'] and route_points:
             try:
                 # Need origin and destination for ORS
@@ -507,35 +509,61 @@ def analyze_vehicle_fit_endpoint():
                     origin = route_points[0]
                     destination = route_points[-1]
                     
-                    alternatives = generate_vehicle_safe_alternatives(
+                    app.logger.info("Main route unfit. Starting iterative safe route search...")
+                    
+                    safe_route_result = find_safe_route(
                         origin, destination,
                         dimensions,
-                        fit_analysis['violations'],
                         app.config,
-                        app.logger
+                        app.logger,
+                        max_attempts=3
                     )
-                    app.logger.info(f"Generated {len(alternatives)} alternative routes")
+                    
+                    # If we found a safe route, we can include it directly
+                    if safe_route_result['success']:
+                         app.logger.info(f"Safe route found after {safe_route_result['attempts']} attempts")
+                    else:
+                         app.logger.warning(f"No safe route found after {safe_route_result['attempts']} attempts")
+                         
             except Exception as e:
-                app.logger.warning(f"Alternative generation failed: {e}")
-        
-        # Get proactive recommendations even if route fits
-        recommended_avoidance = get_recommended_avoidance(dimensions)
-        
-        # ==========================================
-        # Build enhanced response
-        # ==========================================
+                app.logger.warning(f"Safe route search failed: {e}")
+                app.logger.error(traceback.format_exc())
+
+        # Construct Enhanced Response
         response = {
             'success': True,
             'fits': fit_analysis['fits'],
             'violations': fit_analysis['violations'],
-            'summary': fit_analysis.get('summary', {}),
-            'vehicle_dimensions': dimensions,
+            'constraints': fit_analysis['constraints'],
+            'summary': fit_analysis['summary'],
+            'segment_metadata': {
+                'total_segments': segment_metadata['total_segments'],
+                'has_waytypes': segment_metadata['has_waytypes']
+            },
             'osm_constraints_found': len(osm_constraints),
-            'overpass_available': OVERPASS_AVAILABLE,
-            'alternatives': alternatives,
-            'alternatives_available': len(alternatives) > 0,
-            'recommended_avoidance': recommended_avoidance
+            'recommended_avoidance': get_recommended_avoidance(dimensions)
         }
+        
+        # Add iterative search results if available
+        if safe_route_result:
+            response['safe_route_search'] = {
+                'found': safe_route_result['success'],
+                'attempts': safe_route_result['attempts'],
+                'message': safe_route_result.get('message', ''),
+                'final_fit_analysis': safe_route_result.get('fit_analysis'),
+                'history': [{
+                    'attempt': a['attempt'],
+                    'fits': a.get('fits'),
+                    'violations': [v['type'] for v in a.get('violations', [])],
+                    'avoidances': a.get('avoidances_used')
+                } for a in safe_route_result.get('all_attempts', [])]
+            }
+            
+            if safe_route_result['success']:
+                response['safe_route'] = safe_route_result['route']
+        # Add metadata fields
+        response['vehicle_dimensions'] = dimensions
+        response['overpass_available'] = OVERPASS_AVAILABLE
         
         # Add legacy fields for backward compatibility
         response['warnings'] = [v['message'] for v in fit_analysis['violations']]

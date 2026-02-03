@@ -1105,3 +1105,165 @@ def get_recommended_avoidance(vehicle_dimensions):
         avoid.extend(['tracks'])
     
     return list(set(avoid))
+
+
+def get_avoidances_from_violations(violations):
+    """
+    Determine ORS avoid_features from a list of violations.
+    
+    Args:
+        violations: list of violation dicts
+        
+    Returns:
+        list of feature strings to avoid
+    """
+    avoid = []
+    
+    for v in violations:
+        v_type = v.get('type')
+        v_source = v.get('source', '')
+        v_loc_type = v.get('location_type', '')
+        
+        # Height violations
+        if v_type == 'height':
+            avoid.append('tunnels') # Tunnels are the main avoidable height constraint
+            
+        # Width violations
+        elif v_type == 'width':
+            if 'unpaved' in v.get('message', '').lower() or 'path' in v.get('road_type', '').lower():
+                avoid.append('unpavedroads')
+            if 'track' in v.get('road_type', '').lower():
+                avoid.append('tracks')
+            if v_loc_type == 'bridge':
+                # Can't specifically avoid bridges in ORS, but maybe avoid unpaved/tracks helps
+                pass
+                
+        # Weight violations
+        elif v_type == 'weight':
+            avoid.append('ferries')
+            avoid.append('tracks')
+            
+        # Surface violations
+        elif v_type == 'surface':
+            avoid.append('unpavedroads')
+            
+    return list(set(avoid))
+
+
+def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max_attempts=3):
+    """
+    Iteratively find a route that fits the vehicle constraints.
+    Loops: Get Route -> Check Overpass Fits -> If No, Add Avoidance -> Repeat
+    
+    Args:
+        origin: {'lat': float, 'lng': float}
+        destination: {'lat': float, 'lng': float}
+        vehicle_dimensions: dict with constraints
+        config: config dict
+        logger: logger instance
+        max_attempts: max iterations
+        
+    Returns:
+        dict with success, route, fit_analysis, attempts
+    """
+    # Import Overpass client here to avoid circular imports
+    try:
+        from modules.overpass_client import get_road_constraints_along_route, find_constraints_on_route
+        OVERPASS_AVAILABLE = True
+    except ImportError:
+        OVERPASS_AVAILABLE = False
+        logger.warning("Overpass client not available, skipping enhanced checks in find_safe_route")
+
+    tried_avoidances = set()
+    
+    # Pre-populate with recommended avoidances
+    initial_recommendations = get_recommended_avoidance(vehicle_dimensions)
+    if initial_recommendations:
+        tried_avoidances.update(initial_recommendations)
+    
+    all_attempts = []
+    
+    for attempt in range(max_attempts):
+        logger.info(f"Safe Route Search Attempt {attempt + 1}/{max_attempts}. Avoiding: {list(tried_avoidances)}")
+        
+        # Step 1: Generate route
+        current_avoidances = list(tried_avoidances)
+        match_route = request_route_with_avoidance(origin, destination, current_avoidances, config, logger)
+        
+        if not match_route:
+            all_attempts.append({'attempt': attempt + 1, 'error': 'ORS failed to generate route', 'avoidances': current_avoidances})
+            break
+            
+        route_points = match_route['route_points']
+        segment_metadata = match_route['segment_metadata']
+        
+        # Step 2: Get Overpass constraints
+        osm_constraints = []
+        if OVERPASS_AVAILABLE:
+            try:
+                all_constraints = get_road_constraints_along_route(route_points)
+                osm_constraints = find_constraints_on_route(route_points, all_constraints)
+            except Exception as e:
+                logger.warning(f"Overpass query failed in loop: {e}")
+        
+        # Step 3: Analyze Fit
+        fit_result = analyze_vehicle_fit_v2(vehicle_dimensions, route_points, segment_metadata, osm_constraints)
+        
+        # Record attempt
+        attempt_record = {
+            'attempt': attempt + 1,
+            'fits': fit_result['fits'],
+            'violations': fit_result['violations'],
+            'avoidances_used': current_avoidances,
+            'summary': fit_result['summary']
+        }
+        all_attempts.append(attempt_record)
+        
+        # Step 4: Check success
+        if fit_result['fits']:
+            logger.info(f"✅ Safe route found on attempt {attempt + 1}")
+            match_route['fit_analysis'] = fit_result
+            return {
+                'success': True,
+                'route': match_route,
+                'fit_analysis': fit_result,
+                'attempts': attempt + 1,
+                'all_attempts': all_attempts
+            }
+        
+        # Step 5: Prepare next attempt
+        new_avoidances = get_avoidances_from_violations(fit_result['violations'])
+        
+        # If no new restrictions can be added, stop early
+        if not new_avoidances:
+            logger.info("No new avoidances can be determined. Stopping search.")
+            break
+            
+        # If we already tried these avoidances, stop to prevent infinite loops (or useless same requests)
+        # But we accumulate, so we check if the SET matches coverage. 
+        # Actually simplest check: did we add anything NEW this time?
+        added_new = False
+        for avoid in new_avoidances:
+            if avoid not in tried_avoidances:
+                tried_avoidances.add(avoid)
+                added_new = True
+        
+        if not added_new:
+            logger.info("Violations yielded no new avoid features. Stopping search.")
+            break
+            
+    # If we get here, we failed to find a perfectly safe route
+    logger.warning("❌ Failed to find safe route after max attempts")
+    
+    # Return the best effort (usually the last one, or the one with fewest violations)
+    # Simple logic: return last one
+    best_attempt = all_attempts[-1] if all_attempts else None
+    
+    return {
+        'success': False,
+        'message': f"No fully safe route found after {len(all_attempts)} attempts",
+        'route': match_route if 'match_route' in locals() and match_route else None,
+        'fit_analysis': fit_result if 'fit_result' in locals() else None,
+        'attempts': len(all_attempts),
+        'all_attempts': all_attempts
+    }
