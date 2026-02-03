@@ -1550,24 +1550,21 @@ def parse_dimension_value(value_str):
         return None
 
 
-def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_rate=20):
+def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_rate=50):
     """
     Verify route against real OSM constraint data from Overpass API.
     
     This function samples points along the route and queries Overpass for
-    maxheight, maxweight, and maxwidth tags on nearby ways.
+    maxheight, maxweight, and maxwidth tags in a single BATCH query to reduce latency.
     
     Args:
         route_points: List of {'lat': float, 'lng': float} dicts
         vehicle_dimensions: Dict with 'width', 'height', 'weight' keys
         logger: Logger instance
-        sample_rate: Check every Nth point (default 20)
+        sample_rate: Check every Nth point
     
     Returns:
-        Dict with:
-            - 'violations': list of violation dicts
-            - 'checked_points': number of points checked
-            - 'constraints_found': number of constraint tags found
+        Dict with violations and stats
     """
     violations = []
     constraints_found = 0
@@ -1577,107 +1574,126 @@ def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_ra
     v_width = vehicle_dimensions.get('width', 2.0)
     v_weight = vehicle_dimensions.get('weight', 3.5)
     
-    # Sample points along route
+    # Sample points along route - Limit to max 5 queries to prevent timeout
     sample_points = route_points[::sample_rate]
-    
-    # Limit to prevent API abuse (max 10 points)
-    if len(sample_points) > 10:
-        # Sample evenly distributed points
-        indices = np.linspace(0, len(sample_points) - 1, 10, dtype=int)
+    if len(sample_points) > 5:
+        indices = np.linspace(0, len(sample_points) - 1, 5, dtype=int)
         sample_points = [sample_points[i] for i in indices]
     
-    logger.info(f"Verifying constraints at {len(sample_points)} sample points")
+    logger.info(f"Verifying constraints at {len(sample_points)} sample points (Batched)")
     
+    # Construct a single batch query for all points
+    # Using 'union' of search areas to fetch data in one go
+    query_parts = []
     for pt in sample_points:
-        try:
-            # Build Overpass query for constraints near this point
-            query = f"""
-            [out:json][timeout:5];
-            (
-              way(around:30,{pt['lat']},{pt['lng']})["maxheight"];
-              way(around:30,{pt['lat']},{pt['lng']})["maxweight"];
-              way(around:30,{pt['lat']},{pt['lng']})["maxwidth"];
-            );
-            out tags;
-            """
+        lat, lng = pt['lat'], pt['lng']
+        query_parts.append(f'way(around:30,{lat},{lng})["maxheight"];')
+        query_parts.append(f'way(around:30,{lat},{lng})["maxweight"];')
+        query_parts.append(f'way(around:30,{lat},{lng})["maxwidth"];')
+    
+    # Join parts into union query
+    union_query = "".join(query_parts)
+    full_query = f"[out:json][timeout:8];({union_query});out tags center;"
+    
+    try:
+        response = requests.post(
+            'https://overpass-api.de/api/interpreter',
+            data={'data': full_query},
+            timeout=10 # Strict timeout for the request itself
+        )
+        
+        if response.status_code == 429:
+            logger.warning("Overpass API Rate Limit (429). Skipping detailed verification.")
+            return {'violations': [], 'checked_points': 0, 'constraints_found': 0}
             
-            response = requests.post(
-                'https://overpass-api.de/api/interpreter',
-                data={'data': query},
-                timeout=10
-            )
+        if response.status_code != 200:
+            logger.warning(f"Overpass query failed: {response.status_code}")
+            return {'violations': [], 'checked_points': 0, 'constraints_found': 0}
+        
+        data = response.json()
+        elements = data.get('elements', [])
+        
+        for element in elements:
+            tags = element.get('tags', {})
+            way_id = element.get('id', 'unknown')
             
-            if response.status_code != 200:
-                logger.warning(f"Overpass query failed at {pt}: {response.status_code}")
-                continue
+            # Approximate location from center or first node if available
+            # Overpass 'out center' gives a center lat/lon
+            lat = element.get('center', {}).get('lat', sample_points[0]['lat'])
+            lng = element.get('center', {}).get('lon', sample_points[0]['lng'])
             
-            data = response.json()
-            elements = data.get('elements', [])
+            # Check maxheight
+            if 'maxheight' in tags:
+                limit = parse_dimension_value(tags['maxheight'])
+                if limit and v_height > limit:
+                    constraints_found += 1
+                    violations.append({
+                        'type': 'height',
+                        'lat': lat,
+                        'lng': lng,
+                        'limit': limit,
+                        'vehicle_value': v_height,
+                        'osm_way_id': way_id,
+                        'message': f"Height clearance {limit}m < vehicle height {v_height}m",
+                        'severity': 'critical'
+                    })
+                elif limit:
+                    constraints_found += 1
             
-            for element in elements:
-                tags = element.get('tags', {})
-                way_id = element.get('id', 'unknown')
-                
-                # Check maxheight
-                if 'maxheight' in tags:
-                    limit = parse_dimension_value(tags['maxheight'])
-                    if limit and v_height > limit:
-                        constraints_found += 1
-                        violations.append({
-                            'type': 'height',
-                            'lat': pt['lat'],
-                            'lng': pt['lng'],
-                            'limit': limit,
-                            'vehicle_value': v_height,
-                            'osm_way_id': way_id,
-                            'message': f"Height clearance {limit}m < vehicle height {v_height}m",
-                            'severity': 'critical'
-                        })
-                    elif limit:
-                        constraints_found += 1
-                
-                # Check maxweight
-                if 'maxweight' in tags:
-                    limit = parse_dimension_value(tags['maxweight'])
-                    if limit and v_weight > limit:
-                        constraints_found += 1
-                        violations.append({
-                            'type': 'weight',
-                            'lat': pt['lat'],
-                            'lng': pt['lng'],
-                            'limit': limit,
-                            'vehicle_value': v_weight,
-                            'osm_way_id': way_id,
-                            'message': f"Weight limit {limit}t < vehicle weight {v_weight}t",
-                            'severity': 'critical'
-                        })
-                    elif limit:
-                        constraints_found += 1
-                
-                # Check maxwidth
-                if 'maxwidth' in tags:
-                    limit = parse_dimension_value(tags['maxwidth'])
-                    if limit and v_width > limit:
-                        constraints_found += 1
-                        violations.append({
-                            'type': 'width',
-                            'lat': pt['lat'],
-                            'lng': pt['lng'],
-                            'limit': limit,
-                            'vehicle_value': v_width,
-                            'osm_way_id': way_id,
-                            'message': f"Width limit {limit}m < vehicle width {v_width}m",
-                            'severity': 'warning'
-                        })
-                    elif limit:
-                        constraints_found += 1
-                        
-        except requests.Timeout:
-            logger.warning(f"Overpass timeout at point {pt}")
-            continue
-        except Exception as e:
-            logger.error(f"Overpass error at {pt}: {e}")
-            continue
+            # Check maxweight
+            if 'maxweight' in tags:
+                limit = parse_dimension_value(tags['maxweight'])
+                if limit and v_weight > limit:
+                    constraints_found += 1
+                    violations.append({
+                        'type': 'weight',
+                        'lat': lat,
+                        'lng': lng,
+                        'limit': limit,
+                        'vehicle_value': v_weight,
+                        'osm_way_id': way_id,
+                        'message': f"Weight limit {limit}t < vehicle weight {v_weight}t",
+                        'severity': 'critical'
+                    })
+                elif limit:
+                    constraints_found += 1
+            
+            # Check maxwidth
+            if 'maxwidth' in tags:
+                limit = parse_dimension_value(tags['maxwidth'])
+                if limit and v_width > limit:
+                    constraints_found += 1
+                    violations.append({
+                        'type': 'width',
+                        'lat': lat,
+                        'lng': lng,
+                        'limit': limit,
+                        'vehicle_value': v_width,
+                        'osm_way_id': way_id,
+                        'message': f"Width limit {limit}m < vehicle width {v_width}m",
+                        'severity': 'warning'
+                    })
+                elif limit:
+                    constraints_found += 1
+                    
+    except requests.Timeout:
+        logger.warning("Overpass request timed out (client-side)")
+    except Exception as e:
+        logger.error(f"Overpass batch verification error: {e}")
+
+    # Deduplicate violations
+    unique_violations = []
+    seen_ids = set()
+    for v in violations:
+        if v['osm_way_id'] not in seen_ids:
+            unique_violations.append(v)
+            seen_ids.add(v['osm_way_id'])
+    
+    return {
+        'violations': unique_violations,
+        'checked_points': len(sample_points),
+        'constraints_found': constraints_found
+    }
     
     # Deduplicate violations by location (within ~50m)
     unique_violations = []
