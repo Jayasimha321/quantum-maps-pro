@@ -1397,6 +1397,54 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         
     # Check if we have at least one safe route
     safe_count = len([r for r in analyzed_routes if r['is_safe']])
+    
+    # PHASE 2: SMART AVOIDANCE
+    # If no safe standard routes found, try to generate one by actively avoiding violations
+    if safe_count == 0 and analyzed_routes:
+        logger.info("No safe standard routes found. Attempting smart avoidance...")
+        
+        # Analyze the violations of the primary (first) route to determine what to avoid
+        primary_violations = analyzed_routes[0]['fit_analysis']['violations']
+        
+        # Use existing logic to generate candidates based on violations
+        smart_candidates = generate_vehicle_safe_alternatives(
+            origin, destination, vehicle_dimensions, primary_violations, config, logger
+        )
+        
+        for candidate in smart_candidates:
+            route = candidate['route']
+            search_strategy = candidate['strategy'] # 'full_avoidance' or 'partial_avoidance'
+            
+            logger.info(f"Analyzing smart candidate: {search_strategy}")
+            
+            route_points = route['route_points']
+            segment_metadata = route['segment_metadata']
+            
+            # Get Overpass constraints for this new path
+            osm_constraints = []
+            if OVERPASS_AVAILABLE:
+                try:
+                    all_constraints = get_road_constraints_along_route(route_points)
+                    osm_constraints = find_constraints_on_route(route_points, all_constraints)
+                except Exception as e:
+                    logger.warning(f"Overpass query failed for smart candidate: {e}")
+            
+            # Analyze Fit
+            fit_result = analyze_vehicle_fit_v2(vehicle_dimensions, route_points, segment_metadata, osm_constraints)
+            
+            route['fit_analysis'] = fit_result
+            route['is_safe'] = fit_result['fits']
+            route['id'] = len(analyzed_routes)
+            route['tags'] = ['smart_avoidance']
+            route['avoidance_strategy'] = search_strategy
+            
+            analyzed_routes.append(route)
+            
+            # If this one is safe, we can stop? Or collect all?
+            # Let's collect all smart candidates for maximum choice.
+            
+    # Final check of safe count
+    safe_count = len([r for r in analyzed_routes if r['is_safe']])
     logger.info(f"Analysis complete. Safe routes found: {safe_count}/{len(analyzed_routes)}")
     
     return {
