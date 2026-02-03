@@ -893,3 +893,215 @@ def analyze_vehicle_fit_v2(vehicle_dimensions, route_points, segment_metadata, o
         },
         'vehicle_dimensions': vehicle_dimensions
     }
+
+
+# ============================================================================
+# PHASE 4: INTELLIGENT ALTERNATIVE GENERATION
+# ============================================================================
+
+def generate_vehicle_safe_alternatives(origin, destination, vehicle_dimensions, violations, config, logger):
+    """
+    Generate alternative routes that avoid problematic segments.
+    Uses ORS avoid_features to route around issues detected in Phase 3.
+    
+    Args:
+        origin: {'lat': float, 'lng': float}
+        destination: {'lat': float, 'lng': float}
+        vehicle_dimensions: dict with 'width', 'height', 'weight'
+        violations: list of violation dicts from analyze_vehicle_fit_v2
+        config: app config dict
+        logger: logging instance
+    
+    Returns:
+        list of alternative route dicts with avoidance info
+    """
+    if not violations:
+        return []
+    
+    vehicle_width = vehicle_dimensions.get('width', 1.8)
+    vehicle_height = vehicle_dimensions.get('height', 1.5)
+    vehicle_weight = vehicle_dimensions.get('weight', 0)
+    
+    # Determine what features to avoid based on violations and vehicle size
+    avoid_features = []
+    avoid_reasons = []
+    
+    # Check violation types and vehicle dimensions
+    has_height_violation = any(v['type'] == 'height' for v in violations)
+    has_width_violation = any(v['type'] == 'width' for v in violations)
+    has_weight_violation = any(v['type'] == 'weight' for v in violations)
+    has_surface_issue = any(v['type'] == 'surface' for v in violations)
+    
+    # Height issues -> avoid tunnels (most common height restriction)
+    if has_height_violation or vehicle_height > 3.5:
+        avoid_features.append('tunnels')
+        avoid_reasons.append(f"Avoiding tunnels (vehicle height: {vehicle_height}m)")
+    
+    # Width issues on narrow roads -> avoid unpaved (often narrower)
+    if has_width_violation or vehicle_width > 2.5:
+        avoid_features.append('unpavedroads')
+        avoid_reasons.append(f"Avoiding unpaved roads (vehicle width: {vehicle_width}m)")
+    
+    # Heavy vehicles -> avoid certain road types
+    if has_weight_violation or vehicle_weight > 7.5:
+        # Avoid ferries (weight restrictions) and tracks (not built for heavy loads)
+        avoid_features.append('ferries')
+        avoid_features.append('tracks')
+        avoid_reasons.append(f"Avoiding ferries/tracks (vehicle weight: {vehicle_weight}t)")
+    
+    # Surface issues with heavy vehicles
+    if has_surface_issue:
+        avoid_features.append('unpavedroads')
+        if 'Avoiding unpaved roads' not in str(avoid_reasons):
+            avoid_reasons.append("Avoiding unpaved roads due to surface issues")
+    
+    # Very wide vehicles should also avoid steps and narrow paths
+    if vehicle_width > 3.0:
+        avoid_features.append('steps')
+        avoid_features.append('fords')
+        avoid_reasons.append(f"Avoiding steps/fords (very wide vehicle: {vehicle_width}m)")
+    
+    # Remove duplicates
+    avoid_features = list(set(avoid_features))
+    
+    if not avoid_features:
+        logger.info("No avoidance features determined from violations")
+        return []
+    
+    logger.info(f"Generating alternative route avoiding: {avoid_features}")
+    
+    # Build ORS request with avoidance
+    alternatives = []
+    
+    # Try different avoidance combinations
+    avoidance_strategies = [
+        {'features': avoid_features, 'name': 'full_avoidance'},
+        {'features': avoid_features[:2] if len(avoid_features) > 2 else avoid_features, 'name': 'partial_avoidance'},
+    ]
+    
+    for strategy in avoidance_strategies:
+        try:
+            alt_route = request_route_with_avoidance(
+                origin, destination, 
+                strategy['features'], 
+                config, logger
+            )
+            
+            if alt_route:
+                alternatives.append({
+                    'route': alt_route,
+                    'strategy': strategy['name'],
+                    'avoided_features': strategy['features'],
+                    'reasons': avoid_reasons
+                })
+        except Exception as e:
+            logger.warning(f"Failed to generate alternative with {strategy['name']}: {e}")
+    
+    return alternatives
+
+
+def request_route_with_avoidance(origin, destination, avoid_features, config, logger):
+    """
+    Request a route from ORS with specific features avoided.
+    
+    Args:
+        origin: {'lat': float, 'lng': float}
+        destination: {'lat': float, 'lng': float}
+        avoid_features: list of ORS avoid feature names
+        config: app config dict
+        logger: logging instance
+    
+    Returns:
+        Route dict or None if failed
+    """
+    import requests
+    
+    headers = {
+        'Authorization': config.get('ORS_API_KEY', ''),
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json, application/geo+json'
+    }
+    
+    payload = {
+        'coordinates': [
+            [origin['lng'], origin['lat']],
+            [destination['lng'], destination['lat']]
+        ],
+        'instructions': 'true',
+        'preference': 'recommended',
+        'units': 'km',
+        'geometry': 'true',
+        'extra_info': ['waytypes', 'surface'],
+        'options': {
+            'avoid_features': avoid_features
+        }
+    }
+    
+    try:
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
+        logger.info(f"Requesting alternative route avoiding: {avoid_features}")
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        if response.status_code != 200:
+            logger.warning(f"ORS avoidance route failed: {response.status_code}")
+            return None
+        
+        data = response.json()
+        
+        # Extract route data
+        geometry = data['features'][0]['geometry']['coordinates']
+        summary = data['features'][0]['properties']['summary']
+        
+        route_points = [{'lat': lat, 'lng': lng} for lng, lat in geometry]
+        
+        # Extract segment metadata for the alternative
+        segment_metadata = extract_segment_metadata(data)
+        
+        return {
+            'route_points': route_points,
+            'distance_km': summary['distance'] / 1000.0,
+            'duration_min': summary['duration'] / 60.0,
+            'segment_metadata': segment_metadata,
+            'avoided': avoid_features
+        }
+        
+    except Exception as e:
+        logger.error(f"Error requesting avoidance route: {e}")
+        return None
+
+
+def get_recommended_avoidance(vehicle_dimensions):
+    """
+    Get recommended avoid_features based purely on vehicle dimensions.
+    Useful for proactive routing before violations are detected.
+    
+    Args:
+        vehicle_dimensions: dict with 'width', 'height', 'weight'
+    
+    Returns:
+        list of recommended avoid_features
+    """
+    avoid = []
+    
+    width = vehicle_dimensions.get('width', 1.8)
+    height = vehicle_dimensions.get('height', 1.5)
+    weight = vehicle_dimensions.get('weight', 0)
+    
+    # Height-based recommendations
+    if height > 4.0:
+        avoid.extend(['tunnels'])
+    
+    # Width-based recommendations
+    if width > 2.5:
+        avoid.extend(['unpavedroads', 'tracks'])
+    if width > 3.0:
+        avoid.extend(['steps', 'fords'])
+    
+    # Weight-based recommendations
+    if weight > 7.5:
+        avoid.extend(['ferries'])
+    if weight > 12:
+        avoid.extend(['tracks'])
+    
+    return list(set(avoid))
