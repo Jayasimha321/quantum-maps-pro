@@ -244,8 +244,8 @@ def extract_segment_metadata(ors_response):
         properties = ors_response['features'][0]['properties']
         extras = properties.get('extras', {})
         
-        # Extract waytype info
-        waytypes_info = extras.get('waytypes', {}).get('values', [])
+        # Extract waytype info (note: ORS uses 'waytype' singular)
+        waytypes_info = extras.get('waytype', {}).get('values', [])
         surface_info = extras.get('surface', {}).get('values', [])
         
         segments = []
@@ -322,8 +322,8 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
-        # Request extra road info for vehicle fit analysis
-        'extra_info': ['waytypes', 'surface', 'roadaccessrestrictions']
+        # Request extra road info for vehicle fit analysis (ORS uses singular 'waytype')
+        'extra_info': ['waytype', 'surface', 'roadaccessrestrictions']
     }
     
     try:
@@ -1031,7 +1031,7 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
-        'extra_info': ['waytypes', 'surface'],
+        'extra_info': ['waytype', 'surface'],
         'options': {
             'avoid_features': avoid_features
         }
