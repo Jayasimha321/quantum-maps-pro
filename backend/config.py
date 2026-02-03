@@ -9,6 +9,7 @@ load_dotenv()
 CONFIG = {
     # Use environment variable for API key
     'ORS_API_KEY': os.environ.get('ORS_API_KEY', ''),
+    'GRAPHHOPPER_API_KEY': os.environ.get('GRAPHHOPPER_API_KEY', ''),
 # ... rest of config.py
     # CORS settings - Allow all origins for Render deployment
     'CORS_SETTINGS': {
