@@ -308,9 +308,9 @@ def nearest_neighbor_heuristic(distance_matrix: np.ndarray) -> List[int]:
     return route
 
 
-def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 512,
+def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
                               layers: int = 1, use_gpu: bool = True,
-                              warm_start: bool = True, fast_mode: bool = True) -> Tuple[List[int], str, Dict]:
+                              warm_start: bool = True, fast_mode: bool = False) -> Tuple[List[int], str, Dict]:
     """
     Solve TSP using optimized QAOA with one-hot encoding.
     
@@ -331,17 +331,17 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 512,
     n = len(distance_matrix)
     num_qubits = create_one_hot_encoding(n)
     
-    # Stricter limit for production - fewer qubits = faster
-    max_qubits = 9 if fast_mode else 20  # 4 cities in fast mode, 6 in slow
+    # Limit based on mode - allow more qubits with extended timeout
+    max_qubits = 9 if fast_mode else 16  # 4 cities fast, 5 cities full
     if num_qubits > max_qubits:
-        # Fall back to classical for larger problems in production
+        # Fall back to classical for larger problems
         logger.warning(f"Problem requires {num_qubits} qubits > {max_qubits}. Using classical solver.")
         classical_route = nearest_neighbor_heuristic(distance_matrix)
         return classical_route, "Classical Nearest Neighbor (Fallback)", {'fallback': True}
     
     logger.info(f"🔬 Solving TSP with {n} cities using optimized QAOA")
     logger.info(f"   Qubits: {num_qubits} (one-hot encoding)")
-    logger.info(f"   Mode: {'FAST (production)' if fast_mode else 'FULL (development)'}")
+    logger.info(f"   Mode: {'FAST (pre-tuned)' if fast_mode else 'FULL (30 iterations)'}")
     logger.info(f"   Layers: p={layers}")
     logger.info(f"   Shots: {shots}")
     
@@ -385,10 +385,10 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 512,
             
             return total_cost / shots
         
-        # Optimize parameters - REDUCED iterations for web API
-        logger.info("   Optimizing QAOA parameters...")
+        # Optimize parameters - Full 30 iterations for best quality
+        logger.info("   Optimizing QAOA parameters (30 iterations)...")
         result = minimize(objective, initial_params, method='COBYLA',
-                          options={'maxiter': 10, 'disp': False})  # Reduced from 30 to 10
+                          options={'maxiter': 30, 'disp': False})
         gamma_opt, beta_opt = result.x
     
     logger.info(f"   Optimal params: γ={gamma_opt:.4f}, β={beta_opt:.4f}")
