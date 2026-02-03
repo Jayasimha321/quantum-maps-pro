@@ -239,9 +239,20 @@ def extract_segment_metadata(ors_response):
     """
     Extract road segment metadata from ORS response extra_info.
     Returns list of segments with road type, surface, and estimated width.
+    Handles both GeoJSON format (features) and standard JSON format (routes).
     """
     try:
-        properties = ors_response['features'][0]['properties']
+        # Handle both ORS response formats
+        if 'features' in ors_response:
+            # GeoJSON format
+            properties = ors_response['features'][0]['properties']
+        elif 'routes' in ors_response:
+            # Standard JSON format
+            properties = ors_response['routes'][0]
+        else:
+            logging.warning(f"Unknown ORS response format. Keys: {list(ors_response.keys())}")
+            return {'segments': [], 'total_segments': 0, 'has_waytypes': False, 'has_surface': False}
+        
         extras = properties.get('extras', {})
         
         # Extract waytype info (note: ORS uses 'waytype' singular)
@@ -351,8 +362,23 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         
         data = response.json()
         
-        geometry = data['features'][0]['geometry']['coordinates']
-        summary = data['features'][0]['properties']['summary']
+        # Handle both GeoJSON and standard JSON formats from ORS
+        if 'features' in data:
+            # GeoJSON format
+            geometry = data['features'][0]['geometry']['coordinates']
+            route_props = data['features'][0]['properties']
+            summary = route_props['summary']
+            segments = route_props['segments']
+        elif 'routes' in data:
+            # Standard JSON format
+            route_data = data['routes'][0]
+            geometry = route_data['geometry']['coordinates'] if 'geometry' in route_data else route_data.get('geometry_format', [])
+            summary = route_data['summary']
+            segments = route_data.get('segments', [])
+        else:
+            logger.error(f"Unknown ORS response format. Keys: {list(data.keys())}")
+            return None
+        
         distance_meters = summary['distance']
         duration_seconds = summary['duration']
         
@@ -367,7 +393,6 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         
         # Extract navigation instructions
         instructions = []
-        segments = data['features'][0]['properties']['segments']
         for segment in segments:
             for step in segment['steps']:
                 instructions.append({
@@ -1049,9 +1074,18 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         
         data = response.json()
         
-        # Extract route data
-        geometry = data['features'][0]['geometry']['coordinates']
-        summary = data['features'][0]['properties']['summary']
+        # Extract route data - handle both GeoJSON and standard JSON formats
+        if 'features' in data:
+            # GeoJSON format
+            geometry = data['features'][0]['geometry']['coordinates']
+            summary = data['features'][0]['properties']['summary']
+        elif 'routes' in data:
+            # Standard JSON format
+            geometry = data['routes'][0]['geometry']['coordinates']
+            summary = data['routes'][0]['summary']
+        else:
+            logger.warning(f"Unknown ORS response format. Keys: {list(data.keys())}")
+            return None
         
         route_points = [{'lat': lat, 'lng': lng} for lng, lat in geometry]
         
