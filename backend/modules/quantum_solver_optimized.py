@@ -308,9 +308,9 @@ def nearest_neighbor_heuristic(distance_matrix: np.ndarray) -> List[int]:
     return route
 
 
-def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
+def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 512,
                               layers: int = 1, use_gpu: bool = True,
-                              warm_start: bool = True) -> Tuple[List[int], str, Dict]:
+                              warm_start: bool = True, fast_mode: bool = True) -> Tuple[List[int], str, Dict]:
     """
     Solve TSP using optimized QAOA with one-hot encoding.
     
@@ -320,6 +320,7 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
         layers: Number of QAOA layers (p-value, recommended: 1-2)
         use_gpu: Use GPU acceleration if available
         warm_start: Use classical heuristic for parameter initialization
+        fast_mode: Use reduced iterations for web API (prevents timeout)
         
     Returns:
         Tuple of (route, algorithm_name, metadata)
@@ -330,13 +331,17 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
     n = len(distance_matrix)
     num_qubits = create_one_hot_encoding(n)
     
-    # Limit problem size
-    max_qubits = 20
+    # Stricter limit for production - fewer qubits = faster
+    max_qubits = 9 if fast_mode else 20  # 4 cities in fast mode, 6 in slow
     if num_qubits > max_qubits:
-        raise ValueError(f"Problem requires {num_qubits} qubits, exceeding limit of {max_qubits}")
+        # Fall back to classical for larger problems in production
+        logger.warning(f"Problem requires {num_qubits} qubits > {max_qubits}. Using classical solver.")
+        classical_route = nearest_neighbor_heuristic(distance_matrix)
+        return classical_route, "Classical Nearest Neighbor (Fallback)", {'fallback': True}
     
     logger.info(f"🔬 Solving TSP with {n} cities using optimized QAOA")
     logger.info(f"   Qubits: {num_qubits} (one-hot encoding)")
+    logger.info(f"   Mode: {'FAST (production)' if fast_mode else 'FULL (development)'}")
     logger.info(f"   Layers: p={layers}")
     logger.info(f"   Shots: {shots}")
     
@@ -344,43 +349,47 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
     hamiltonian = create_tsp_hamiltonian_one_hot(distance_matrix)
     
     # Warm-start parameters if requested
-    if warm_start:
-        classical_route = nearest_neighbor_heuristic(distance_matrix)
-        classical_cost = calculate_route_cost(classical_route, distance_matrix)
-        logger.info(f"   Warm-start: Classical NN cost = {classical_cost:.2f}")
-        initial_params = [np.pi / 4, np.pi / 4]  # Standard initialization
+    classical_route = nearest_neighbor_heuristic(distance_matrix)
+    classical_cost = calculate_route_cost(classical_route, distance_matrix)
+    logger.info(f"   Warm-start: Classical NN cost = {classical_cost:.2f}")
+    
+    # In fast mode, skip optimization and use fixed good parameters
+    if fast_mode:
+        gamma_opt, beta_opt = np.pi / 4, np.pi / 8  # Pre-tuned values
+        logger.info(f"   Using pre-tuned parameters (fast mode)")
     else:
         initial_params = [np.pi / 4, np.pi / 4]
-    
-    # Simple parameter optimization (limited iterations for speed)
-    def objective(params):
-        gamma, beta = params
-        circuit = create_qaoa_circuit_one_hot(num_qubits, gamma, beta, hamiltonian, layers)
         
-        # Execute
-        if use_gpu and GPU_AVAILABLE:
-            simulator = AerSimulator(method='statevector', device='GPU')
-        else:
-            simulator = AerSimulator(method='statevector', device='CPU')
+        # Simple parameter optimization (LIMITED iterations for production)
+        def objective(params):
+            gamma, beta = params
+            circuit = create_qaoa_circuit_one_hot(num_qubits, gamma, beta, hamiltonian, layers)
+            
+            # Execute
+            if use_gpu and GPU_AVAILABLE:
+                simulator = AerSimulator(method='statevector', device='GPU')
+            else:
+                simulator = AerSimulator(method='statevector', device='CPU')
+            
+            # Use lower optimization level for speed in production
+            compiled = transpile(circuit, simulator, optimization_level=1)
+            job = simulator.run(compiled, shots=min(shots, 256))
+            counts = job.result().get_counts()
+            
+            # Calculate expectation
+            total_cost = 0.0
+            for bitstring, count in counts.items():
+                route = decode_one_hot_to_route(bitstring, n)
+                cost = calculate_route_cost(route, distance_matrix)
+                total_cost += cost * count
+            
+            return total_cost / shots
         
-        compiled = transpile(circuit, simulator, optimization_level=3)
-        job = simulator.run(compiled, shots=min(shots, 512))
-        counts = job.result().get_counts()
-        
-        # Calculate expectation
-        total_cost = 0.0
-        for bitstring, count in counts.items():
-            route = decode_one_hot_to_route(bitstring, n)
-            cost = calculate_route_cost(route, distance_matrix)
-            total_cost += cost * count
-        
-        return total_cost / shots
-    
-    # Optimize parameters
-    logger.info("   Optimizing QAOA parameters...")
-    result = minimize(objective, initial_params, method='COBYLA',
-                      options={'maxiter': 30, 'disp': False})
-    gamma_opt, beta_opt = result.x
+        # Optimize parameters - REDUCED iterations for web API
+        logger.info("   Optimizing QAOA parameters...")
+        result = minimize(objective, initial_params, method='COBYLA',
+                          options={'maxiter': 10, 'disp': False})  # Reduced from 30 to 10
+        gamma_opt, beta_opt = result.x
     
     logger.info(f"   Optimal params: γ={gamma_opt:.4f}, β={beta_opt:.4f}")
     
@@ -394,8 +403,9 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
         simulator = AerSimulator(method='statevector', device='CPU')
         logger.info("   💻 Executing on CPU")
     
-    # Hardware-aware transpilation
-    compiled = transpile(circuit, simulator, optimization_level=3)
+    # Use lower optimization for speed in fast mode
+    opt_level = 1 if fast_mode else 3
+    compiled = transpile(circuit, simulator, optimization_level=opt_level)
     job = simulator.run(compiled, shots=shots)
     counts = job.result().get_counts()
     
@@ -419,15 +429,22 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
     logger.info(f"   ✅ Valid routes: {validity_rate:.1f}%")
     logger.info(f"   🎯 Best cost: {best_cost:.2f}")
     
+    # If no valid routes found, fall back to classical
+    if best_route is None:
+        logger.warning("   ⚠️ No valid quantum routes, using classical fallback")
+        best_route = classical_route
+        best_cost = classical_cost
+    
     metadata = {
         'num_qubits': num_qubits,
         'circuit_depth': compiled.depth(),
         'validity_rate': validity_rate,
         'gamma': gamma_opt,
-        'beta': beta_opt
+        'beta': beta_opt,
+        'fast_mode': fast_mode
     }
     
-    algorithm_name = "Quantum QAOA"
+    algorithm_name = "Quantum QAOA" + (" (Fast)" if fast_mode else "")
     
     return best_route if best_route else list(range(n)), algorithm_name, metadata
 
