@@ -2404,15 +2404,23 @@
                             });
 
                             data = await response.json();
+                            console.log("Backend Route Data:", data); // DEBUG
                             if (!data?.success) throw new Error(data?.error || 'Backend returned error');
                         } catch (err) {
-                            console.warn('Backend unavailable, fallback to OpenRouteService (Classical):', err.message);
-                            this.status('Backend unreachable, using Classical Routing...');
-                            // Fallback to Classical Mode (uses ORS for geometry)
-                            data = await this.mockQuantumSolve(locations, 'classical');
+                            console.error('Backend routing failed:', err);
+                            this.toast(`Routing Error: ${err.message}`, 'error');
+                            // fallback to mock REMOVED to prevent fake data
+                            this.loading(false);
+                            return;
                         }
                     } else {
-                        data = await this.mockQuantumSolve(locations, quantumMode);
+                        // Classical mode - still use backend! Force backend for everything.
+                        // But if mode is classical, previous block handles it.
+                        // This 'else' block was for 'mock' usage?
+                        // START CHANGE: Remove mock usage entirely for reliability
+                        this.toast("Local simulation disabled. Backend required.", "warning");
+                        this.loading(false);
+                        return;
                     }
 
                     const color = this.qOpt ? (this.qSuper ? COLORS.superposition : COLORS.quantum) : COLORS.classical;
