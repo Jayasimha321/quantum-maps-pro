@@ -9,6 +9,41 @@ from datetime import datetime
 from .utils import haversine_distance_km
 from .route_interpolation import interpolate_route_points
 
+def decode_polyline(polyline_str):
+    """
+    Decodes a Google encoded polyline string.
+    Returns list of [lng, lat] (ORS GeoJSON convention).
+    """
+    index, lat, lng = 0, 0, 0
+    coordinates = []
+    changes = {'latitude': 0, 'longitude': 0}
+
+    # Coordinates have to be divided by 1e5 to handle 5 decimal precision
+    while index < len(polyline_str):
+        for unit in ['latitude', 'longitude']: 
+            shift, result = 0, 0
+            while True:
+                if index >= len(polyline_str):
+                    break
+                byte = ord(polyline_str[index]) - 63
+                index += 1
+                result |= (byte & 0x1f) << shift
+                shift += 5
+                if not byte >= 0x20:
+                    break
+            
+            if (result & 1):
+                changes[unit] = ~(result >> 1)
+            else:
+                changes[unit] = (result >> 1)
+        
+        lat += changes['latitude']
+        lng += changes['longitude']
+        
+        coordinates.append([lng / 100000.0, lat / 100000.0])
+        
+    return coordinates
+
 # Constants for road network simulation
 ROAD_NETWORK_DENSITY = 0.8  # Higher values create more road-like paths
 MAX_CURVE_FACTOR = 2.0  # Maximum curve intensity
