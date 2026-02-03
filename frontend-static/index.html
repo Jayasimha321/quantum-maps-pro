@@ -3478,8 +3478,8 @@
                     const routePoints = this.routeLine.getLatLngs().map(p => ({ lat: p.lat, lng: p.lng }));
 
                     // Call Backend API
-                    // Use relative URL or CONFIG.API_URL if available
-                    const apiUrl = (typeof CONFIG !== 'undefined' && CONFIG.API_URL) ? `${CONFIG.API_URL}/analyze_vehicle_fit` : '/analyze_vehicle_fit';
+                    // Use CONFIG.VEHICLE_ANALYSIS_URL which points to the backend
+                    const apiUrl = CONFIG.VEHICLE_ANALYSIS_URL;
 
                     const response = await fetch(apiUrl, {
                         method: 'POST',
