@@ -1370,7 +1370,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         },
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions'],
         'options': {
-            'avoid_features': ['ferries', 'fords', 'steps'],
+            # 'avoid_features': ['ferries', 'fords', 'steps'], # Commented out to debug API failure
             'profile_params': {
                 'restrictions': {
                     'width': width,
