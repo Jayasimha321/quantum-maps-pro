@@ -3600,38 +3600,10 @@
                     routeButton.style.marginTop = '6px';
                     routeButton.style.width = '100%';
 
-                    const badgeHtml = isSafe ? `
-                        <span style="font-size:10px;background:var(--success);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
-                            <i class="fa-solid fa-check"></i> Safe
-                        </span>
-                    ` : `
-                        <span style="font-size:10px;background:var(--warning);color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Risks
-                        </span>
-                    `;
-
-                    // Calculate distance/freq if available (or use raw data)
-                    const distance = route.summary ? (route.summary.distance / 1000).toFixed(2) : (route.distance_km || '?');
-                    const duration = route.summary ? Math.round(route.summary.duration / 60) : (route.duration_min ? parseFloat(route.duration_min).toFixed(0) : '?');
-
-                    // Avoidance info
-                    let avoidanceText = 'Standard route';
-                    if (route.fit_analysis && !route.fit_analysis.fits) {
-                        avoidanceText = route.fit_analysis.violations.length + ' violations';
-                    } else if (index > 0) {
-                        avoidanceText = 'Alternative ' + (index + 1);
-                    }
-
                     routeButton.innerHTML = `
-                        <div style="display:flex;align-items:center;width:100%;justify-content:space-between;">
-                            <div style="display:flex;align-items:center;gap:6px;">
-                                <i class="fa-solid fa-route" style="color:${isSafe ? 'var(--success)' : 'var(--warning)'}"></i>
-                                <span>${distance} km · ${duration} min</span>
-                            </div>
-                            ${badgeHtml}
-                        </div>
-                        <div style="font-size:10px; color:#666; margin-top:4px; padding-left:20px;">
-                            ${avoidanceText}
+                        <div style="display:flex;align-items:center;">
+                            <i class="fa-solid fa-route" style="margin-right:8px; color:${isSafe ? 'var(--success)' : 'var(--warning)'}"></i>
+                            <span>Route ${index + 1}: ${distance} km · ${duration} min</span>
                         </div>
                     `;
 
