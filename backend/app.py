@@ -534,7 +534,7 @@ def analyze_vehicle_fit_endpoint():
             'success': True,
             'fits': fit_analysis['fits'],
             'violations': fit_analysis['violations'],
-            'constraints': fit_analysis['constraints'],
+            'constraints': fit_analysis.get('constraints', {}),  # v2 doesn't return constraints
             'summary': fit_analysis['summary'],
             'segment_metadata': {
                 'total_segments': segment_metadata['total_segments'],
