@@ -314,6 +314,37 @@ def extract_segment_metadata(ors_response):
             'has_surface': False
         }
 
+def decode_polyline(polyline_str):
+    """Decodes a Polyline string into a list of lat/lng dicts."""
+    index, lat, lng = 0, 0, 0
+    coordinates = []
+    changes = {'latitude': 0, 'longitude': 0}
+    length = len(polyline_str)
+
+    while index < length:
+        for unit in ['latitude', 'longitude']:
+            shift, result = 0, 0
+
+            while True:
+                byte = ord(polyline_str[index]) - 63
+                index += 1
+                result |= (byte & 0x1f) << shift
+                shift += 5
+                if not byte >= 0x20:
+                    break
+
+            if (result & 1):
+                changes[unit] = ~(result >> 1)
+            else:
+                changes[unit] = (result >> 1)
+
+        lat += changes['latitude']
+        lng += changes['longitude']
+
+        coordinates.append([lng / 100000.0, lat / 100000.0])
+
+    return coordinates
+
 def get_route_from_ors(start_coords, end_coords, transport_profile, config, logger):
     """
     Get a route between two points using the OpenRouteService API.
@@ -333,7 +364,6 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
-        'geometry_format': 'geojson',
         # Request extra road info for vehicle fit analysis (ORS uses singular 'waytype')
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions']
     }
@@ -363,17 +393,28 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         
         data = response.json()
         
-        # Handle both GeoJSON and standard JSON formats from ORS
+        # Handle both GeoJSON, standard JSON, and Encoded Polyline formats
+        geometry = []
+        segments = []
+        summary = {}
+        
         if 'features' in data:
             # GeoJSON format
             geometry = data['features'][0]['geometry']['coordinates']
             route_props = data['features'][0]['properties']
             summary = route_props['summary']
-            segments = route_props['segments']
+            segments = route_props.get('segments', [])
         elif 'routes' in data:
             # Standard JSON format
             route_data = data['routes'][0]
-            geometry = route_data['geometry']['coordinates'] if 'geometry' in route_data else route_data.get('geometry_format', [])
+            
+            # Handle geometry: standard JSON often returns encoded polyline string
+            raw_geometry = route_data.get('geometry')
+            if isinstance(raw_geometry, str):
+                geometry = decode_polyline(raw_geometry)
+            else:
+                geometry = raw_geometry if raw_geometry else []
+                
             summary = route_data['summary']
             segments = route_data.get('segments', [])
         else:
@@ -1057,7 +1098,6 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
-        'geometry_format': 'geojson',
         'extra_info': ['waytype', 'surface'],
         'options': {
             'avoid_features': avoid_features
@@ -1076,15 +1116,30 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         
         data = response.json()
         
-        # Extract route data - handle both GeoJSON and standard JSON formats
+        # Extract route data - handle both GeoJSON, standard JSON, and Encoded Polyline formats
+        geometry = []
+        segments = []
+        summary = {}
+        
         if 'features' in data:
             # GeoJSON format
             geometry = data['features'][0]['geometry']['coordinates']
-            summary = data['features'][0]['properties']['summary']
+            route_props = data['features'][0]['properties']
+            summary = route_props['summary']
+            segments = route_props.get('segments', [])
         elif 'routes' in data:
             # Standard JSON format
-            geometry = data['routes'][0]['geometry']['coordinates']
-            summary = data['routes'][0]['summary']
+            route_data = data['routes'][0]
+            
+            # Handle geometry: standard JSON often returns encoded polyline string
+            raw_geometry = route_data.get('geometry')
+            if isinstance(raw_geometry, str):
+                geometry = decode_polyline(raw_geometry)
+            else:
+                geometry = raw_geometry if raw_geometry else []
+            
+            summary = route_data['summary']
+            segments = route_data.get('segments', [])
         else:
             logger.warning(f"Unknown ORS response format. Keys: {list(data.keys())}")
             return None
