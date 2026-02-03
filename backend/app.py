@@ -16,9 +16,24 @@ from modules.routing import (
     solve_tsp_classical, 
     calculate_route_statistics, 
     generate_alternative_routes,
-    analyze_vehicle_fit
+    analyze_vehicle_fit,
+    # Phase 1-4 imports for enhanced vehicle fit analysis
+    extract_segment_metadata,
+    analyze_vehicle_fit_v2,
+    generate_vehicle_safe_alternatives,
+    get_recommended_avoidance
 )
 from modules.quantum_solver_simple import solve_tsp_quantum, solve_tsp_classical_fallback
+
+# Import Overpass client for Phase 2
+try:
+    from modules.overpass_client import (
+        get_road_constraints_along_route,
+        find_constraints_on_route
+    )
+    OVERPASS_AVAILABLE = True
+except ImportError:
+    OVERPASS_AVAILABLE = False
 
 # Import optimized solver with one-hot encoding
 try:
@@ -426,26 +441,107 @@ def get_navigation_status(navigation_id):
 
 @app.route('/analyze_vehicle_fit', methods=['POST'])
 def analyze_vehicle_fit_endpoint():
-    """Standalone vehicle fit analysis endpoint."""
+    """
+    Enhanced vehicle fit analysis endpoint (v2).
+    Uses segment-level constraint checking, Overpass API for OSM data,
+    and intelligent alternative generation.
+    """
     try:
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
         
+        # Get vehicle dimensions
         vehicle_type = data.get('vehicle_type', 'sedan')
         vehicle_dimensions = data.get('vehicle_dimensions', {})
         route_points = data.get('route_points', [])
+        segment_metadata = data.get('segment_metadata', None)
+        generate_alternatives = data.get('generate_alternatives', True)
         
+        # Resolve dimensions from vehicle type or custom
         dimensions = (vehicle_dimensions if vehicle_type == 'custom' 
                       else app.config["VEHICLE_DIMENSIONS"].get(vehicle_type, 
                            app.config["VEHICLE_DIMENSIONS"]['sedan']))
         
-        fit_analysis = analyze_vehicle_fit(dimensions, route_points, app.config)
+        # ==========================================
+        # PHASE 1: Get segment metadata if not provided
+        # ==========================================
+        if not segment_metadata and route_points:
+            segment_metadata = {
+                'segments': [],
+                'total_segments': 0,
+                'has_waytypes': False,
+                'has_surface': False
+            }
         
-        return jsonify({
+        # ==========================================
+        # PHASE 2: Query Overpass API for OSM constraints
+        # ==========================================
+        osm_constraints = []
+        if OVERPASS_AVAILABLE and route_points:
+            try:
+                all_constraints = get_road_constraints_along_route(route_points)
+                osm_constraints = find_constraints_on_route(route_points, all_constraints)
+                app.logger.info(f"Found {len(osm_constraints)} OSM constraints on route")
+            except Exception as e:
+                app.logger.warning(f"Overpass API query failed: {e}")
+        
+        # ==========================================
+        # PHASE 3: Segment-level constraint checking
+        # ==========================================
+        fit_analysis = analyze_vehicle_fit_v2(
+            dimensions, 
+            route_points, 
+            segment_metadata, 
+            osm_constraints
+        )
+        
+        # ==========================================
+        # PHASE 4: Generate alternatives if needed
+        # ==========================================
+        alternatives = []
+        if generate_alternatives and not fit_analysis['fits'] and route_points:
+            try:
+                # Need origin and destination for ORS
+                if len(route_points) >= 2:
+                    origin = route_points[0]
+                    destination = route_points[-1]
+                    
+                    alternatives = generate_vehicle_safe_alternatives(
+                        origin, destination,
+                        dimensions,
+                        fit_analysis['violations'],
+                        app.config,
+                        app.logger
+                    )
+                    app.logger.info(f"Generated {len(alternatives)} alternative routes")
+            except Exception as e:
+                app.logger.warning(f"Alternative generation failed: {e}")
+        
+        # Get proactive recommendations even if route fits
+        recommended_avoidance = get_recommended_avoidance(dimensions)
+        
+        # ==========================================
+        # Build enhanced response
+        # ==========================================
+        response = {
             'success': True,
-            **fit_analysis
-        })
+            'fits': fit_analysis['fits'],
+            'violations': fit_analysis['violations'],
+            'summary': fit_analysis.get('summary', {}),
+            'vehicle_dimensions': dimensions,
+            'osm_constraints_found': len(osm_constraints),
+            'overpass_available': OVERPASS_AVAILABLE,
+            'alternatives': alternatives,
+            'alternatives_available': len(alternatives) > 0,
+            'recommended_avoidance': recommended_avoidance
+        }
+        
+        # Add legacy fields for backward compatibility
+        response['warnings'] = [v['message'] for v in fit_analysis['violations']]
+        
+        return jsonify(response)
+        
     except Exception as e:
         app.logger.error(f"Vehicle fit analysis failed: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
