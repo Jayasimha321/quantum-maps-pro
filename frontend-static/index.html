@@ -3604,10 +3604,13 @@
                     routeButton.style.marginTop = '6px';
                     routeButton.style.width = '100%';
 
+                    const distance = route.distance_km ? formatDistance(route.distance_km) : (route.summary ? formatDistance(route.summary.distance / 1000) : '0 km');
+                    const duration = route.duration_min ? formatDuration(route.duration_min) : (route.summary ? formatDuration(route.summary.duration / 60) : '0 min');
+
                     routeButton.innerHTML = `
                         <div style="display:flex;align-items:center;">
                             <i class="fa-solid fa-route" style="margin-right:8px; color:${isSafe ? 'var(--success)' : 'var(--warning)'}"></i>
-                            <span>Route ${index + 1}: ${distance} km · ${duration} min</span>
+                            <span>Route ${index + 1}: ${distance} · ${duration}</span>
                         </div>
                     `;
 
