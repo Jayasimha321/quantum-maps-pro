@@ -3527,12 +3527,25 @@
                 if (fits) {
                     getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
                     getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--success)';
-                    getElement('alternativeRouteSection').style.display = 'none';
                     this.toast('Vehicle fits on the selected route', 'success');
 
                     // Show proactively recommended avoidances if any
                     if (data.recommended_avoidance && data.recommended_avoidance.length > 0) {
                         this.toast(`Tip: Consider avoiding ${data.recommended_avoidance.join(', ')}`, 'info');
+                    }
+
+                    // Even if it fits, show alternative search results if available (forced generation)
+                    if (data.safe_route_search && data.safe_route_search.found) {
+                        getElement('alternativeRouteSection').style.display = 'block';
+                        // Add a note that main route is also safe
+                        const note = document.createElement('div');
+                        note.className = 'text-sm text-gray-400 mt-2';
+                        note.innerText = 'Note: Main route is already valid, but additional routes were analyzed.';
+                        getElement('alternativeRoutesList').prepend(note);
+
+                        this.displaySafeRoute(data.safe_route, data.safe_route_search);
+                    } else {
+                        getElement('alternativeRouteSection').style.display = 'none';
                     }
                 } else {
                     getElement('fitStatusText').textContent = 'Vehicle does not fit on route ✗';

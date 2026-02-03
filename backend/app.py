@@ -502,12 +502,13 @@ def analyze_vehicle_fit_endpoint():
         # ==========================================
         safe_route_result = None
         
-        if generate_alternatives and not fit_analysis['fits'] and route_points:
+        if generate_alternatives and route_points:
+            try:
                 if len(route_points) >= 2:
                     origin = route_points[0]
                     destination = route_points[-1]
                     
-                    app.logger.info(f"Main route unfit (Fit: {fit_analysis['fits']}). Starting iterative safe route search...")
+                    app.logger.info(f"Generating alternatives (Main Fit: {fit_analysis['fits']})...")
                     app.logger.info(f"Vehicle Dimensions: {dimensions}")
                     
                     safe_route_result = find_safe_route(
@@ -517,23 +518,21 @@ def analyze_vehicle_fit_endpoint():
                         app.logger,
                         max_attempts=2
                     )
-        else:
-             if fit_analysis['fits']:
-                 app.logger.info("Vehicle fits main route. Skipping alternative search.")
-             elif not generate_alternatives:
-                 app.logger.info("Alternative generation disabled by request.")
-             elif not route_points:
-                 app.logger.warning("No route points provided for alternative search.")
                     
-                    # If we found a safe route, we can include it directly
-                    if safe_route_result['success']:
-                         app.logger.info(f"Safe route found after {safe_route_result['attempts']} attempts")
-                    else:
-                         app.logger.warning(f"No safe route found after {safe_route_result['attempts']} attempts")
-                         
+                    # Log result
+                    if safe_route_result and safe_route_result['success']:
+                         app.logger.info(f"Safe route search successful after {safe_route_result['attempts']} attempts")
+                    elif safe_route_result:
+                         app.logger.info(f"Safe route search completed but no better route found (attempts: {safe_route_result['attempts']})")
+
             except Exception as e:
                 app.logger.warning(f"Safe route search failed: {e}")
                 app.logger.error(traceback.format_exc())
+        else:
+             if not generate_alternatives:
+                 app.logger.info("Alternative generation disabled by request.")
+             elif not route_points:
+                 app.logger.warning("No route points provided for alternative search.")
 
         # Construct Enhanced Response
         response = {
