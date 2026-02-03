@@ -3541,7 +3541,7 @@
                         const note = document.createElement('div');
                         note.className = 'text-sm text-gray-400 mt-2';
                         note.innerText = 'Note: Main route is already valid, but additional routes were analyzed.';
-                        getElement('alternativeRoutesList').prepend(note);
+                        getElement('routeOptions').prepend(note);
 
                         this.displaySafeRoute(data.safe_route, data.safe_route_search);
                     } else {
