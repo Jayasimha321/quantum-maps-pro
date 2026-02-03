@@ -333,6 +333,7 @@ def get_route_from_ors(start_coords, end_coords, transport_profile, config, logg
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
+        'geometry_format': 'geojson',
         # Request extra road info for vehicle fit analysis (ORS uses singular 'waytype')
         'extra_info': ['waytype', 'surface', 'roadaccessrestrictions']
     }
@@ -1056,6 +1057,7 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
         'preference': 'recommended',
         'units': 'km',
         'geometry': 'true',
+        'geometry_format': 'geojson',
         'extra_info': ['waytype', 'surface'],
         'options': {
             'avoid_features': avoid_features
