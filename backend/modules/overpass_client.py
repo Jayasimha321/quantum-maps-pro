@@ -56,7 +56,7 @@ def get_road_constraints_along_route(route_points, buffer_meters=100):
     
     # Overpass QL query for road restrictions
     query = f'''
-    [out:json][timeout:25];
+    [out:json][timeout:8];
     (
       // Ways with height restrictions
       way["maxheight"]({min_lat},{min_lng},{max_lat},{max_lng});
@@ -86,7 +86,7 @@ def get_road_constraints_along_route(route_points, buffer_meters=100):
         response = requests.post(
             OVERPASS_URL, 
             data={'data': query}, 
-            timeout=30,
+            timeout=10,
             headers={'User-Agent': 'QuantumMaps/1.0'}
         )
         response.raise_for_status()

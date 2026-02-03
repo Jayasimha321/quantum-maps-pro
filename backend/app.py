@@ -516,7 +516,7 @@ def analyze_vehicle_fit_endpoint():
                         dimensions,
                         app.config,
                         app.logger,
-                        max_attempts=3
+                        max_attempts=2
                     )
                     
                     # If we found a safe route, we can include it directly
