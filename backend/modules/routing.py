@@ -1440,6 +1440,26 @@ def request_route_with_avoidance(origin, destination, avoid_features, config, lo
 
 
 
+    except Exception as e:
+        logger.error(f"Error requesting avoidance route: {e}")
+        return None
+
+def haversine_distance_km(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    """
+    # Convert decimal degrees to radians 
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+    # Haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a)) 
+    r = 6371 # Radius of earth in kilometers. Use 3956 for miles
+    return c * r
+
 def get_recommended_avoidance(vehicle_dimensions):
     """
     Get recommended avoid_features based purely on vehicle dimensions.
@@ -1540,6 +1560,25 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
 
     for profile in profiles_to_try:
         try:
+            # Calculate complexity (Distance)
+            dist_km = haversine_distance_km(origin['lat'], origin['lng'], destination['lat'], destination['lng'])
+            
+            # Dynamic Max Weight Factor Scaling
+            # Short (<5km): 3.5 (High flexibility)
+            # Medium (5-20km): 2.5
+            # Long (20-100km): 1.7
+            # Very Long (>100km): 1.3
+            if dist_km < 5:
+                max_weight = 3.5
+            elif dist_km < 20:
+                max_weight = 2.5
+            elif dist_km < 100:
+                max_weight = 1.7
+            else:
+                max_weight = 1.3
+                
+            logger.info(f"Route Distance: {dist_km:.2f}km -> Dynamic Weight Factor: {max_weight}")
+
             url = "https://graphhopper.com/api/1/route"
             params = {
                 'point': [f"{origin['lat']},{origin['lng']}", f"{destination['lat']},{destination['lng']}"],
@@ -1548,7 +1587,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
                 'algorithm': 'alternative_route',
                 'ch.disable': 'true', # Required for alternatives usually
                 'alternative_route.max_paths': 10,
-                'alternative_route.max_weight_factor': 3.5,
+                'alternative_route.max_weight_factor': max_weight,
                 'alternative_route.max_share_factor': 0.7,
                 'points_encoded': 'true',
                 'instructions': 'true'
