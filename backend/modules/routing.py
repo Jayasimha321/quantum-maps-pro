@@ -1578,7 +1578,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
         
         # We need a base route first to generate alternatives from
         # Get base route from ORS
-        base_route = get_route_from_ors(origin, destination, 'driving-car', config) 
+        base_route = get_route_from_ors(origin, destination, 'driving-car', config, logger) 
         
         if base_route:
              # Extract distances/indices for Yen's - this requires a bit of setup
