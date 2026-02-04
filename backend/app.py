@@ -48,6 +48,13 @@ except ImportError:
     QISKIT_OPTIMIZED_AVAILABLE = False
     QISKIT_AVAILABLE = True  # Fallback to simple solver
 
+# Import Binary Solver (Logarithmic)
+try:
+    from modules.quantum_solver_binary import solve_tsp_binary
+    BINARY_SOLVER_AVAILABLE = True
+except ImportError:
+    BINARY_SOLVER_AVAILABLE = False
+
 DWAVE_AVAILABLE = False
 
 # --- App Initialization and Configuration ---
@@ -147,8 +154,22 @@ def quantum_route_optimization():
             qaoa_layers = app.config['QUANTUM_SETTINGS'].get('qaoa_layers', 2)
             
             try:
-                if QISKIT_OPTIMIZED_AVAILABLE:
-                    # Use OPTIMIZED quantum solver with one-hot encoding
+                # Determine best solver strategy based on Problem Size (N)
+                num_cities = len(distances)
+                
+                # N >= 6: One-Hot needs (N-1)^2 = 25+ qubits (Exceeds exact sim limit of 20)
+                # Binary needs (N-1)* ceil(log2(N-1)) = 5*3 = 15 qubits (Fits easily)
+                if num_cities >= 6 and BINARY_SOLVER_AVAILABLE:
+                    app.logger.info(f"Using Binary Logarithmic QAOA for N={num_cities} (qubit saving)")
+                    route_indices, algorithm_used, metadata = solve_tsp_binary(
+                        distances,
+                        shots=shots,
+                        layers=qaoa_layers
+                    )
+                    app.logger.info(f"Binary QAOA metadata: {metadata}")
+                
+                elif QISKIT_OPTIMIZED_AVAILABLE:
+                    # Use OPTIMIZED quantum solver with one-hot encoding (Best for N < 6)
                     app.logger.info(f"Using optimized QAOA with one-hot encoding, {shots} shots, p={qaoa_layers}")
                     route_indices, algorithm_used, metadata = solve_tsp_qaoa_optimized(
                         distances,
