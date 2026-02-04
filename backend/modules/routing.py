@@ -1732,6 +1732,9 @@ def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_ra
         query_parts.append(f'way(around:30,{lat},{lng})["maxheight"];')
         query_parts.append(f'way(around:30,{lat},{lng})["maxweight"];')
         query_parts.append(f'way(around:30,{lat},{lng})["maxwidth"];')
+        query_parts.append(f'way(around:30,{lat},{lng})["hgv"];')
+        query_parts.append(f'way(around:30,{lat},{lng})["access"];')
+        query_parts.append(f'way(around:30,{lat},{lng})["motor_vehicle"];')
     
     # Join parts into union query
     union_query = "".join(query_parts)
@@ -1799,6 +1802,24 @@ def verify_route_constraints(route_points, vehicle_dimensions, logger, sample_ra
                     })
                 elif limit:
                     constraints_found += 1
+            
+            # Check HGV/Access Restrictions
+            hgv_status = tags.get('hgv', tags.get('motor_vehicle', tags.get('access', 'yes')))
+            if hgv_status in ['no', 'private', 'agricultural', 'forestry'] and v_weight > 3.5:
+                # Basic check: if vehicle is heavy (>3.5t) and hgv/access is restricted
+                # Refine: if hgv=delivery, we might allow it (but mark warning)
+                 constraints_found += 1
+                 violations.append({
+                    'type': 'restriction',
+                    'lat': lat,
+                    'lng': lng,
+                    'limit': hgv_status,
+                    'vehicle_value': 'truck',
+                    'osm_way_id': way_id,
+                    'message': f"Restricted access: {hgv_status}",
+                    'severity': 'critical'
+                })
+
             
             # Check maxwidth
             if 'maxwidth' in tags:
