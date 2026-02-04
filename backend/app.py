@@ -162,9 +162,9 @@ def quantum_route_optimization():
                 
                 # SAFETY CHECK: Prevent OOM on Render (512MB Limit)
                 # Statevector simulation OOMs around 24-25 qubits.
-                # Binary N=8 -> 7 * 3 = 21 qubits (Safe)
-                # Binary N=9 -> 8 * 3 = 24 qubits (Risky/Crash)
-                if num_cities > 8:
+                # Binary N=7 (18 qubits) crashed with HighLevelSynthesis OOM.
+                # Lowering limit to N=6 (max 15 qubits).
+                if num_cities > 6:
                     app.logger.warning(f"Problem size N={num_cities} too large for quantum simulation (OOM risk). Falling back to classical.")
                     route_indices = solve_tsp_classical(distances)
                     algorithm_used = 'Classical Optimization (Size Limit)'

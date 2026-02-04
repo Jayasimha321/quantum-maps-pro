@@ -314,11 +314,15 @@ def solve_tsp_binary(distance_matrix: np.ndarray, shots: int = 1024, layers: int
     
     # If massive (binary reduced 36 -> 18), statevector is fine.
     # If N=15, 14*4 = 56 qubits -> Need MPS.
-    if total_qubits > 20:
+    # If massive (binary reduced 36 -> 18), statevector is fine usually but
+    # HighLevelSynthesis can OOM on synthesis.
+    # Force MPS earlier to save memory on 512MB instances.
+    if total_qubits > 12:  # Lowered from 20 -> 12 for safety on Render
         simulator = AerSimulator(method='matrix_product_state')
-        logger.info("Using MPS for large binary circuit.")
+        logger.info("Using MPS for large binary circuit to prevent OOM.")
     
-    compiled = transpile(circuit, simulator, optimization_level=1)
+    # Use optimization_level=0 to skip fast but memory-heavy synthesis passes
+    compiled = transpile(circuit, simulator, optimization_level=0)
     job = simulator.run(compiled, shots=shots)
     counts = job.result().get_counts()
     
