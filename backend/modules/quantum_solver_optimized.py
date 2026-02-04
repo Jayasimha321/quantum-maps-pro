@@ -332,12 +332,28 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
     num_qubits = create_one_hot_encoding(n)
     
     # Limit based on mode - allow more qubits with extended timeout
-    max_qubits = 9 if fast_mode else 16  # 4 cities fast, 5 cities full
-    if num_qubits > max_qubits:
-        # Fall back to classical for larger problems
-        logger.warning(f"Problem requires {num_qubits} qubits > {max_qubits}. Using classical solver.")
-        classical_route = nearest_neighbor_heuristic(distance_matrix)
-        return classical_route, "Classical Nearest Neighbor (Fallback)", {'fallback': True}
+    # Dynamic Limit: Statevector (exact) limit is ~20-25. MPS (approx) can go higher.
+    limit_exact = 20
+    limit_mps = 64
+    
+    use_mps = False
+    
+    if num_qubits > limit_exact:
+        if num_qubits <= limit_mps:
+            use_mps = True
+            logger.info(f"⚠️ Problem requires {num_qubits} qubits. Switching to Matrix Product State (MPS) approximation.")
+        else:
+             # Fall back to classical
+            logger.warning(f"Problem requires {num_qubits} qubits > {limit_mps}. Using classical solver.")
+            classical_route = nearest_neighbor_heuristic(distance_matrix)
+            return classical_route, "Classical Nearest Neighbor (Fallback)", {'fallback': True}
+    elif num_qubits > max_qubits: 
+        # Original safe limit for "fast" mode or standard usage without MPS explicit trust
+        # We override this if the user specifically asked for high qubits (implied by this code change)
+        # But let's respect 'fast_mode' still.
+        if fast_mode:
+             logger.warning(f"Fast Mode limit exceeded ({num_qubits} > {max_qubits}). Using classical.")
+             return nearest_neighbor_heuristic(distance_matrix), "Classical (Limit)", {'fallback': True}
     
     logger.info(f"🔬 Solving TSP with {n} cities using optimized QAOA")
     logger.info(f"   Qubits: {num_qubits} (one-hot encoding)")
@@ -366,8 +382,10 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
             circuit = create_qaoa_circuit_one_hot(num_qubits, gamma, beta, hamiltonian, layers)
             
             # Execute
-            if use_gpu and GPU_AVAILABLE:
+            if use_gpu and GPU_AVAILABLE and not use_mps:
                 simulator = AerSimulator(method='statevector', device='GPU')
+            elif use_mps:
+                 simulator = AerSimulator(method='matrix_product_state')
             else:
                 simulator = AerSimulator(method='statevector', device='CPU')
             
@@ -396,9 +414,12 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
     # Final execution with optimized parameters
     circuit = create_qaoa_circuit_one_hot(num_qubits, gamma_opt, beta_opt, hamiltonian, layers)
     
-    if use_gpu and GPU_AVAILABLE:
+    if use_gpu and GPU_AVAILABLE and not use_mps:
         simulator = AerSimulator(method='statevector', device='GPU')
         logger.info("   🚀 Executing on GPU")
+    elif use_mps:
+        simulator = AerSimulator(method='matrix_product_state')
+        logger.info("   🧩 Executing using Tensor Network (MPS)")
     else:
         simulator = AerSimulator(method='statevector', device='CPU')
         logger.info("   💻 Executing on CPU")
