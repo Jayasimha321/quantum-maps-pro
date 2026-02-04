@@ -159,7 +159,17 @@ def quantum_route_optimization():
                 
                 # N >= 6: One-Hot needs (N-1)^2 = 25+ qubits (Exceeds exact sim limit of 20)
                 # Binary needs (N-1)* ceil(log2(N-1)) = 5*3 = 15 qubits (Fits easily)
-                if num_cities >= 6 and BINARY_SOLVER_AVAILABLE:
+                
+                # SAFETY CHECK: Prevent OOM on Render (512MB Limit)
+                # Statevector simulation OOMs around 24-25 qubits.
+                # Binary N=8 -> 7 * 3 = 21 qubits (Safe)
+                # Binary N=9 -> 8 * 3 = 24 qubits (Risky/Crash)
+                if num_cities > 8:
+                    app.logger.warning(f"Problem size N={num_cities} too large for quantum simulation (OOM risk). Falling back to classical.")
+                    route_indices = solve_tsp_classical(distances)
+                    algorithm_used = 'Classical Optimization (Size Limit)'
+                
+                elif num_cities >= 6 and BINARY_SOLVER_AVAILABLE:
                     app.logger.info(f"Using Binary Logarithmic QAOA for N={num_cities} (qubit saving)")
                     route_indices, algorithm_used, metadata = solve_tsp_binary(
                         distances,
