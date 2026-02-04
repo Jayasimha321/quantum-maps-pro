@@ -1343,7 +1343,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
     gh_key = config.get('GRAPHHOPPER_API_KEY', '')
     if not gh_key:
         logger.error("GraphHopper API Key missing! Cannot generate alternatives.")
-        return {'success': False, 'routes': [], 'message': "GraphHopper API Key missing", 'attempts': 0}
+        return {'success': False, 'routes': [], 'message': "GraphHopper API Key missing", 'attempts': 0, 'count': 0}
 
     logger.info(f"Requesting GraphHopper alternatives for vehicle: {vehicle_dimensions}")
     
@@ -1388,7 +1388,7 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
             logger.error(f"GraphHopper ({profile}) error: {e}")
 
     if not all_candidates:
-        return {'success': False, 'routes': [], 'message': "No routes found via GraphHopper", 'attempts': 1}
+        return {'success': False, 'routes': [], 'message': "No routes found via GraphHopper", 'attempts': 1, 'count': 0}
 
     # Verify Logic ("Safe" part)
     # Check constraints for candidates via Overpass
@@ -1435,28 +1435,20 @@ def _parse_gh_routes(data, vehicle_dimensions):
         # Decode Geometry
         # GraphHopper uses same polyline encoding as Google/ORS usually
         encoded = path.get('points')
+        geo_points_list = []
+        
         if isinstance(encoded, str):
-            geometry = decode_polyline(encoded) # [lat, lng] list? 
-            # Wait, my decode_polyline returns [lng, lat] (GeoJSON) or [lat, lng]?
-            # Let's check decode_polyline impl. 
-            # It usually returns what ORS uses.
-            # ORS uses [lng, lat]. 
-            # GraphHopper points string decodes to [lat, lng].
-            # I need to ensure consistency.
-            # Let's assume decode_polyline returns [lat, lng] lists based on its name 
-            # (standard polyline lib returns lat,lng). 
-            # However ORS usually wants [lng, lat] for GeoJSON.
-            # My current decode_polyline (lines 352-381) docs say "Returns list of lat/lng dicts" or similar?
-            # Outline said: "Returns list of [lng, lat] (ORS GeoJSON convention)" lines 12-45
-            pass
+            try:
+                geo_points_list = decode_polyline(encoded)
+            except Exception:
+                pass
         
-        # Re-check decode_polyline implementation later if needed, but assuming it works for standard strings
-        # actually, I should just use the existing one.
-        # However, GraphHopper returns polyline string.
-        geo_points_list = decode_polyline(encoded)
-        
+        if not geo_points_list:
+            continue
+            
         # Convert to route_points dict list
-        # If decode_polyline returns [lng, lat] lists:
+        # decode_polyline returns [lng, lat] (ORS Style)
+        # So p[0] is lng, p[1] is lat
         route_points = [{'lat': p[1], 'lng': p[0]} for p in geo_points_list]
         
         distance_km = path.get('distance', 0) / 1000.0
