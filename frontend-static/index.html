@@ -2403,8 +2403,8 @@
                     { lat: to.lat, lng: to.lng }
                 ];
 
-                // Calculate baseline distance for real-time comparison
-                const baselineKm = this.calculateTotalDistance(locations);
+                // Calculate baseline distance for real-time comparison (x1.3 for estimated road factor)
+                const baselineKm = this.calculateTotalDistance(locations) * 1.3;
 
                 this.loading(true);
                 this.status(this.qOpt ? 'Quantum processors optimizing route…' : 'Calculating optimal path…');
@@ -2463,7 +2463,17 @@
 
                     this.map.fitBounds(this.routeLine.getBounds(), { padding: [20, 20] });
 
-                    const km = data.distance;
+                    // Ensure KM is valid. If 0, calculate from road coordinates approx
+                    let km = data.distance;
+                    if (!km || km < 0.01) {
+                        // Estimate from roadCoords if backend failed to provide dist
+                        let distSum = 0;
+                        for (let i = 0; i < roadCoords.length - 1; i++) {
+                            distSum += this.map.distance(roadCoords[i], roadCoords[i + 1]);
+                        }
+                        km = distSum / 1000;
+                    }
+
                     const minutes = Math.round(data.duration);
                     const optimization = data.optimization;
 
@@ -3329,15 +3339,17 @@
                 getElement('rOpt').textContent = `${optimization}%`;
 
                 // Calculate real savings
+                // Calculate real savings
                 let savedKm = 0;
                 let savedMin = 0;
 
+                // Only show savings if baseline is reasonably larger, otherwise assume optimal parity
                 if (baselineKm > km) {
                     savedKm = baselineKm - km;
-                    // Estimate time saving assuming constant average speed
-                    const speed = km / (minutes / 60); // km/h
+                    // Estimate time saving assuming constant average speed or minimum traffic gain
+                    const speed = km / (minutes / 60 || 1); // km/h, avoid div/0
                     const baselineMin = (baselineKm / speed) * 60;
-                    savedMin = baselineMin - minutes;
+                    savedMin = Math.max(0, baselineMin - minutes);
                 }
 
                 getElement('distSave').textContent = savedKm > 0.05 ? formatDistance(savedKm) : '0 km';

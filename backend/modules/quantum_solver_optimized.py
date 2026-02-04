@@ -347,13 +347,8 @@ def solve_tsp_qaoa_optimized(distance_matrix: np.ndarray, shots: int = 1024,
             logger.warning(f"Problem requires {num_qubits} qubits > {limit_mps}. Using classical solver.")
             classical_route = nearest_neighbor_heuristic(distance_matrix)
             return classical_route, "Classical Nearest Neighbor (Fallback)", {'fallback': True}
-    elif num_qubits > max_qubits: 
-        # Original safe limit for "fast" mode or standard usage without MPS explicit trust
-        # We override this if the user specifically asked for high qubits (implied by this code change)
-        # But let's respect 'fast_mode' still.
-        if fast_mode:
-             logger.warning(f"Fast Mode limit exceeded ({num_qubits} > {max_qubits}). Using classical.")
-             return nearest_neighbor_heuristic(distance_matrix), "Classical (Limit)", {'fallback': True}
+    
+    # max_qubits check removed (redundant with limit_exact and caused NameError)
     
     logger.info(f"🔬 Solving TSP with {n} cities using optimized QAOA")
     logger.info(f"   Qubits: {num_qubits} (one-hot encoding)")

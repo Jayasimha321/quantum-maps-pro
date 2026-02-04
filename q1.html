@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quantum Maps Pro — Live Tracking + Waypoint Dialog</title>
 
-    <!-- External Dependencies -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -235,9 +234,6 @@
             gap: 10px;
         }
 
-        /* =============================================================================
-           LAYOUT COMPONENTS
-        ============================================================================= */
         /* =============================================================================
            LAYOUT COMPONENTS
         ============================================================================= */
@@ -650,7 +646,6 @@
             transition: width 0.3s ease-out;
         }
 
-
         .type {
             position: absolute;
             right: 16px;
@@ -1034,9 +1029,6 @@
 </head>
 
 <body>
-    <!-- =============================================================================
-         HEADER SECTION
-    ============================================================================= -->
     <header class="header" role="banner">
         <div class="brand" aria-label="Quantum Maps Pro">
             <div class="logo" aria-hidden="true">Q</div>
@@ -1069,13 +1061,8 @@
         </div>
     </header>
 
-    <!-- =============================================================================
-         MAIN CONTENT AREA
-    ============================================================================= -->
     <div class="wrap">
-        <!-- SIDEBAR -->
         <aside class="sidebar" id="sidebar" aria-label="Controls sidebar">
-            <!-- DIRECTIONS SECTION -->
             <section class="card">
                 <div class="head">
                     <i class="fa-solid fa-route"></i> Directions
@@ -1134,7 +1121,6 @@
                         </button>
                     </div>
 
-                    <!-- VEHICLE FIT ANALYSIS SECTION - MOVED HERE UNDER GET DIRECTION -->
                     <div style="margin-top:16px; padding-top:16px; border-top: 1px solid #eef0f4;">
                         <div class="label" style="margin-bottom:12px;">
                             <i class="fa-solid fa-truck"></i> Vehicle Fit Analysis
@@ -1218,7 +1204,6 @@
                             </button>
                         </div>
 
-                        <!-- Analysis Results -->
                         <div id="vehicleAnalysisResults" style="display:none; margin-top:16px;">
                             <div class="status" id="fitStatus" style="background:#f0f4f8;">
                                 <span class="dot"></span>
@@ -1238,7 +1223,6 @@
                                 </div>
                             </div>
 
-                            <!-- Alternative Routes Section -->
                             <div id="alternativeRouteSection" style="display:none; margin-top:12px;">
                                 <div id="alternativeRoutesAvailable" style="display:none;">
                                     <div
@@ -1248,7 +1232,6 @@
                                     </div>
                                     <div id="routeOptions"
                                         style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
-                                        <!-- Route option buttons will be dynamically added here -->
                                     </div>
                                 </div>
                                 <div id="noAlternativeRoutes" style="display:none;">
@@ -1262,7 +1245,6 @@
                         </div>
                     </div>
 
-                    <!-- QUICK ACCESS BUTTONS -->
                     <div class="quick" style="margin-top:14px;">
                         <button class="qbtn" data-type="fuel">
                             <i class="fa-solid fa-gas-pump"></i> Gas
@@ -1284,13 +1266,11 @@
                         </button>
                     </div>
 
-                    <!-- POI SUB-OPTIONS PANEL -->
                     <div id="poiSubOptions">
                         <div id="poiQuestion" class="label" style="font-size:13px; margin-bottom:10px; color:#0056b3;">
                             What are you looking for?
                         </div>
                         <div id="poiOptions" style="display:flex; flex-wrap:wrap; gap:8px;">
-                            <!-- Options will be injected here -->
                         </div>
                     </div>
 
@@ -1302,7 +1282,6 @@
                 </div>
             </section>
 
-            <!-- QUANTUM CONTROLS SECTION -->
             <section class="card">
                 <div class="head">
                     <i class="fa-solid fa-sliders"></i> Quantum Controls
@@ -1343,7 +1322,6 @@
                 </div>
             </section>
 
-            <!-- NAVIGATION STATS SECTION -->
             <section class="card">
                 <div class="head">
                     <i class="fa-solid fa-chart-column"></i> Navigation Stats
@@ -1388,21 +1366,17 @@
             </section>
         </aside>
 
-        <!-- TOGGLE BUTTON -->
         <button class="toggle" id="toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
             <i class="fa-solid fa-chevron-left"></i>
         </button>
 
-        <!-- MAP SECTION -->
         <main class="map" aria-label="Map">
             <div id="map" role="application" aria-label="Map canvas"></div>
 
-            <!-- MAP CONTROLS -->
             <button class="recenter" id="recenterBtn">
                 <i class="fa-solid fa-location-arrow"></i> Re-center
             </button>
 
-            <!-- ROUTE INFORMATION BOX -->
             <div class="floating" id="routeBox">
                 <div style="font-weight:800;display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                     <i class="fa-solid fa-route"></i> Route Analysis
@@ -1423,7 +1397,6 @@
                 </button>
             </div>
 
-            <!-- NAVIGATION OVERLAY -->
             <div class="nav-overlay" id="navOverlay">
                 <div class="nav-header">
                     <button class="nav-mute" id="navMute" onclick="window.quantumMaps.toggleMute()">
@@ -1450,7 +1423,6 @@
                 </div>
             </div>
 
-            <!-- MAP CONTROL BUTTONS -->
             <div class="mc">
                 <button class="cbtn" id="zin" title="Zoom in">
                     <i class="fa-solid fa-plus"></i>
@@ -1463,7 +1435,6 @@
                 </button>
             </div>
 
-            <!-- MAP TYPE SELECTOR -->
             <div class="type" role="tablist" aria-label="Basemap types">
                 <div class="tbtn active" data-type="roadmap" role="tab">
                     <i class="fa-solid fa-map"></i> Default
@@ -1474,17 +1445,12 @@
 
             </div>
 
-            <!-- LOADING SPINNER -->
             <div class="loading" id="loading">
                 <div class="spinner" aria-label="Loading"></div>
             </div>
         </main>
     </div>
 
-    <!-- =============================================================================
-         MODALS & OVERLAYS
-    ============================================================================= -->
-    <!-- WAYPOINT MODAL -->
     <div class="modal-backdrop" id="wpModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="wpModalTitle">
         <div class="modal">
             <div class="mh">
@@ -1517,15 +1483,11 @@
         </div>
     </div>
 
-    <!-- TOAST NOTIFICATIONS -->
     <div class="alert" id="toast">
         <i class="fa-solid fa-circle-info"></i>
         <span id="toastMsg">Hello</span>
     </div>
 
-    <!-- =============================================================================
-         EXTERNAL SCRIPTS
-    ============================================================================= -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
@@ -1533,7 +1495,8 @@
            CONFIGURATION & CONSTANTS
         ============================================================================= */
         const CONFIG = {
-            BACKEND_URL: 'http://localhost:5000/quantum_route',
+            // Production Backend URL (Render)
+            BACKEND_URL: 'https://quantum-maps-pro-backend.onrender.com/quantum_route',
             USE_BACKEND: true,
 
             // Map settings
@@ -1546,8 +1509,8 @@
             MAX_SEARCH_RESULTS: 6,
 
             // Vehicle analysis settings
-            VEHICLE_ANALYSIS_URL: 'http://localhost:5000/analyze_vehicle_fit',
-            ALTERNATIVE_ROUTE_URL: 'http://localhost:5000/generate_alternative_route',
+            VEHICLE_ANALYSIS_URL: 'https://quantum-maps-pro-backend.onrender.com/analyze_vehicle_fit',
+            ALTERNATIVE_ROUTE_URL: 'https://quantum-maps-pro-backend.onrender.com/generate_alternative_route',
             // Optimized Search Settings
             SEARCH_DEBOUNCE_MS: 350,   // Increased from 280ms to reduce API calls
             SEARCH_CACHE_TTL: 300000,  // 5 minutes cache validity
@@ -1776,13 +1739,13 @@
             initMap() {
                 this.map = L.map('map', { zoomControl: false }).setView([CONFIG.DEFAULT_LOCATION.lat, CONFIG.DEFAULT_LOCATION.lng], CONFIG.DEFAULT_ZOOM);
 
-                this.base.roadmap = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                this.base.roadmap = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                     maxZoom: 21,
                     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
                     attribution: '&copy; Google Maps'
                 }).addTo(this.map);
 
-                this.base.satellite = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                this.base.satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
                     maxZoom: 21,
                     subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
                     attribution: '&copy; Google Maps'
@@ -2377,8 +2340,8 @@
                     { lat: to.lat, lng: to.lng }
                 ];
 
-                // Calculate baseline distance for real-time comparison
-                const baselineKm = this.calculateTotalDistance(locations);
+                // Calculate baseline distance for real-time comparison (x1.3 for estimated road factor)
+                const baselineKm = this.calculateTotalDistance(locations) * 1.3;
 
                 this.loading(true);
                 this.status(this.qOpt ? 'Quantum processors optimizing route…' : 'Calculating optimal path…');
@@ -2429,7 +2392,17 @@
 
                     this.map.fitBounds(this.routeLine.getBounds(), { padding: [20, 20] });
 
-                    const km = data.distance;
+                    // Ensure KM is valid. If 0, calculate from road coordinates approx
+                    let km = data.distance;
+                    if (!km || km < 0.01) {
+                        // Estimate from roadCoords if backend failed to provide dist
+                        let distSum = 0;
+                        for (let i = 0; i < roadCoords.length - 1; i++) {
+                            distSum += this.map.distance(roadCoords[i], roadCoords[i + 1]);
+                        }
+                        km = distSum / 1000;
+                    }
+
                     const minutes = Math.round(data.duration);
                     const optimization = data.optimization;
 
@@ -3298,12 +3271,13 @@
                 let savedKm = 0;
                 let savedMin = 0;
 
+                // Only show savings if baseline is reasonably larger, otherwise assume optimal parity
                 if (baselineKm > km) {
                     savedKm = baselineKm - km;
-                    // Estimate time saving assuming constant average speed
-                    const speed = km / (minutes / 60); // km/h
+                    // Estimate time saving assuming constant average speed or minimum traffic gain
+                    const speed = km / (minutes / 60 || 1); // km/h, avoid div/0
                     const baselineMin = (baselineKm / speed) * 60;
-                    savedMin = baselineMin - minutes;
+                    savedMin = Math.max(0, baselineMin - minutes);
                 }
 
                 getElement('distSave').textContent = savedKm > 0.05 ? formatDistance(savedKm) : '0 km';
@@ -3421,6 +3395,7 @@
             async analyzeVehicleFit() {
                 // Reset state
                 this.vehicleAnalysisShown = false;
+                this.clearVehicleAnalysis(); // Ensure clean state
 
                 const vehicleType = getElement('vehicleType').value;
                 let vehicleWidth, vehicleHeight, vehicleWeight, vehicleLength;
@@ -3453,76 +3428,198 @@
                     vehicleLength = dims.length;
                 }
 
-                // Show analysis UI - ONLY ONCE
+                // Store dimensions for later use
+                this.currentFitAnalysis = {
+                    vehicleWidth, vehicleHeight, vehicleWeight, vehicleLength
+                };
+
+                // Show analysis UI
                 getElement('vehicleAnalysisResults').style.display = 'block';
                 getElement('fitStatus').style.display = 'flex';
-                getElement('fitStatusText').textContent = 'Analyzing route constraints...';
+                getElement('fitStatusText').textContent = 'Analyzing route constraints with Quantum Engine...';
                 getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--warning)';
 
+                // Visualize footprint
+                this.drawVehicleFootprint(this.fromMarker ? this.fromMarker.getLatLng() : this.user, vehicleWidth, vehicleLength);
+
                 try {
-                    await sleep(1000);
-
-                    // Simulate road analysis
-                    const roadWidth = 3.5 + Math.random() * 0.5;
-                    const bridgeHeight = 4.2 + Math.random() * 0.8;
-                    const weightLimit = 25 + Math.random() * 15;
-                    const turnRadius = 15 + Math.random() * 10;
-
-                    const fits = vehicleWidth < roadWidth - 0.5 &&
-                        vehicleHeight < bridgeHeight - 0.3 &&
-                        vehicleWeight < weightLimit - 2 &&
-                        vehicleLength * 1.3 < turnRadius;
-
-                    // Display results
-                    getElement('roadWidth').textContent = `${roadWidth.toFixed(1)}m`;
-                    getElement('bridgeHeight').textContent = `${bridgeHeight.toFixed(1)}m`;
-                    getElement('weightLimit').textContent = `${weightLimit.toFixed(0)} tons`;
-                    getElement('turnRadius').textContent = `${turnRadius.toFixed(0)}m`;
-                    getElement('fitDetails').style.display = 'block';
-
-                    if (fits) {
-                        // Vehicle FITS - SHOW SUCCESS MESSAGE ONCE
-                        if (!this.vehicleAnalysisShown) {
-                            getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
-                            getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--success)';
-                            getElement('alternativeRouteSection').style.display = 'none';
-                            this.toast('Vehicle fits on the selected route', 'success');
-                            this.vehicleAnalysisShown = true;
-                        }
-                    } else {
-                        // Vehicle DOESN'T FIT - SHOW ERROR AND GENERATE ALTERNATIVES
-                        if (!this.vehicleAnalysisShown) {
-                            getElement('fitStatusText').textContent = 'Vehicle does not fit on route ✗';
-                            getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
-                            this.toast('Vehicle does not fit on this route. Generating alternatives...', 'warning');
-                            this.vehicleAnalysisShown = true;
-                        }
-
-                        // Store for alternative generation
-                        this.currentFitAnalysis = {
-                            fits: false,
-                            vehicleWidth,
-                            vehicleHeight,
-                            vehicleWeight,
-                            vehicleLength,
-                            roadWidth,
-                            bridgeHeight,
-                            weightLimit,
-                            turnRadius
-                        };
-
-                        // Visualize the vehicle scale on the map
-                        this.drawVehicleFootprint(this.fromMarker ? this.fromMarker.getLatLng() : this.user, vehicleWidth, vehicleLength);
-
-                        // Generate alternative routes automatically
-                        await this.generateAlternativeRoutes();
+                    if (!this.routeLine) {
+                        this.toast('Please calculate a route first', 'error');
+                        return;
                     }
+
+                    const routePoints = this.routeLine.getLatLngs().map(p => ({ lat: p.lat, lng: p.lng }));
+
+                    // Call Backend API
+                    // Use CONFIG.VEHICLE_ANALYSIS_URL which points to the backend
+                    const apiUrl = CONFIG.VEHICLE_ANALYSIS_URL;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            vehicle_type: 'custom', // Use custom to pass explicit dimensions
+                            vehicle_dimensions: { width: vehicleWidth, height: vehicleHeight, weight: vehicleWeight, length: vehicleLength },
+                            route_points: routePoints,
+                            generate_alternatives: true
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Analysis API failed');
+
+                    const data = await response.json();
+
+                    // Update UI with REAL data
+                    this.updateAnalysisUI(data);
 
                 } catch (error) {
                     console.error('Vehicle analysis error:', error);
-                    this.toast('Analysis failed', 'error');
-                    getElement('fitStatusText').textContent = 'Analysis failed';
+                    this.toast('Analysis failed: ' + error.message, 'error');
+                    getElement('fitStatusText').textContent = 'Analysis connection failed';
                     getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
+
+                    // Fallback to local generation if backend fails? 
+                    // No, explicitly fail to avoid misleading user.
+                }
+            }
+
+            updateAnalysisUI(data) {
+                const fits = data.fits;
+
+                // Update Details Panel
+                getElement('fitDetails').style.display = 'block';
+
+                // Populate constraints if available, or dashes
+                getElement('roadWidth').textContent = data.constraints?.min_width ? `${data.constraints.min_width}m` : '—';
+                getElement('bridgeHeight').textContent = data.constraints?.min_height ? `${data.constraints.min_height}m` : '—';
+                getElement('weightLimit').textContent = data.constraints?.max_weight ? `${data.constraints.max_weight}t` : '—';
+                getElement('turnRadius').textContent = '—'; // Backend doesn't calculate this yet
+
+                if (fits) {
+                    getElement('fitStatusText').textContent = 'Vehicle fits on route ✓';
+                    getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--success)';
+                    this.toast('Vehicle fits on the selected route', 'success');
+
+                    // Show proactively recommended avoidances if any
+                    if (data.recommended_avoidance && data.recommended_avoidance.length > 0) {
+                        this.toast(`Tip: Consider avoiding ${data.recommended_avoidance.join(', ')}`, 'info');
+                    }
+
+                    // Even if it fits, show alternative search results if available (forced generation)
+                    if (data.safe_route_search && data.safe_route_search.found) {
+                        getElement('alternativeRouteSection').style.display = 'block';
+                        // Add a note that main route is also safe
+                        const note = document.createElement('div');
+                        note.className = 'text-sm text-gray-400 mt-2';
+                        note.innerText = 'Note: Main route is already valid, but additional routes were analyzed.';
+                        getElement('routeOptions').prepend(note);
+
+                        this.displaySafeRoute(data.safe_route, data.safe_route_search);
+                    } else {
+                        getElement('alternativeRouteSection').style.display = 'none';
+                    }
+                } else {
+                    getElement('fitStatusText').textContent = 'Vehicle does not fit on route ✗';
+                    getElement('fitStatus').querySelector('.dot').style.backgroundColor = 'var(--danger)';
+                    this.toast('Vehicle does not fit! Searching for safer alternatives...', 'warning');
+
+                    // Show violations
+                    const violations = data.violations.map(v => `${v.type}: ${v.message}`).join('; ');
+                    getElement('fitStatusText').textContent = `Unsafe: ${violations}`;
+
+                    // Handle Safe Route
+                    // Handle Safe Route & Alternatives
+                    if (data.safe_route_search && (data.safe_route_search.found || (data.safe_route_search.routes && data.safe_route_search.routes.length > 0))) {
+                        this.displaySafeRoute(data.safe_route, data.safe_route_search);
+                    } else {
+                        this.generateAlternativeRoutes(); // Fallback to standard alternatives if no safe route found
+                    }
+                }
+            }
+
+            displaySafeRoute(safeRoute, searchMetadata) {
+                // Show alternative routes section
+                getElement('alternativeRouteSection').style.display = 'block';
+                getElement('alternativeRoutesAvailable').style.display = 'block';
+                getElement('noAlternativeRoutes').style.display = 'none';
+
+                const routes = searchMetadata.routes || [];
+                const safeCount = routes.filter(r => r.is_safe).length;
+                const totalCount = routes.length;
+
+                getElement('routeCountText').textContent = `${totalCount} analyzed options (${safeCount} safe)`;
+                getElement('routeCountText').style.color = safeCount > 0 ? 'var(--success)' : 'var(--warning)';
+
+                // Clear and populate route options
+                const routeOptionsContainer = getElement('routeOptions');
+                routeOptionsContainer.innerHTML = '';
+
+                // If no routes in metadata but safeRoute exists (legacy implicit), wrap it
+                if (routes.length === 0 && safeRoute) {
+                    routes.push(safeRoute);
+                }
+
+                routes.forEach((route, index) => {
+                    const isSafe = route.is_safe || (route === safeRoute); // Fallback assumption
+                    const routeButton = document.createElement('button');
+                    routeButton.className = 'btn ghost';
+                    routeButton.style.fontSize = '12px';
+                    routeButton.style.padding = '8px 12px';
+                    routeButton.style.justifyContent = 'flex-start';
+                    routeButton.style.border = isSafe ? '1px solid var(--success)' : '1px solid var(--warning)';
+                    routeButton.style.background = isSafe ? '#f0fff4' : '#fffbf0';
+                    routeButton.style.marginTop = '6px';
+                    routeButton.style.width = '100%';
+
+                    routeButton.innerHTML = `
+                        <div style="display:flex;align-items:center;">
+                            <i class="fa-solid fa-route" style="margin-right:8px; color:${isSafe ? 'var(--success)' : 'var(--warning)'}"></i>
+                            <span>Route ${index + 1}: ${distance} km · ${duration} min</span>
+                        </div>
+                    `;
+
+                    routeButton.onclick = () => {
+                        this.visualizeSafeRouteOnMap(route);
+                        // Highlight selected button
+                        Array.from(routeOptionsContainer.children).forEach(btn => btn.style.boxShadow = 'none');
+                        routeButton.style.boxShadow = '0 0 0 2px var(--primary)';
+                    };
+
+                    routeOptionsContainer.appendChild(routeButton);
+                });
+
+                // Automatically visualize the first safe route, or the first route if none safe
+                const defaultRoute = routes.find(r => r.is_safe) || routes[0];
+                if (defaultRoute) {
+                    this.visualizeSafeRouteOnMap(defaultRoute);
+                }
+            }
+
+            visualizeSafeRouteOnMap(route) {
+                // Clear previous
+                this.alternativeRouteLines.forEach(line => this.map.removeLayer(line));
+                this.alternativeRouteLines = [];
+
+                let coordinates = [];
+                if (route.geometry && route.geometry.coordinates) {
+                    coordinates = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                } else if (route.route_points) {
+                    coordinates = route.route_points.map(p => [p.lat, p.lng]);
+                }
+
+                if (coordinates.length > 0) {
+                    const routeLine = L.polyline(coordinates, {
+                        color: '#10b981', // Emerald green
+                        weight: 6,
+                        opacity: 0.9,
+                        dashArray: '10 5'
+                    }).addTo(this.map);
+
+                    this.alternativeRouteLines.push(routeLine);
+                    this.map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
+                    this.toast('Visualizing Safe Route', 'success');
                 }
             }
 

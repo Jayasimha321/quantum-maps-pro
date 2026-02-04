@@ -7846,3 +7846,127 @@ TypeError: calculate_route_statistics() missing 1 required positional argument: 
 2026-02-03 15:17:54,921 - werkzeug - WARNING -  * Debugger is active!
 2026-02-03 15:17:54,926 - werkzeug - INFO -  * Debugger PIN: 100-569-395
 2026-02-03 15:19:12,200 - werkzeug - INFO - 127.0.0.1 - - [03/Feb/2026 15:19:12] "[33mGET /health HTTP/1.1[0m" 404 -
+2026-02-03 15:27:58,088 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_phase3.py', reloading
+2026-02-03 15:27:58,089 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_phase4.py', reloading
+2026-02-03 15:27:58,092 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_phase5.py', reloading
+2026-02-03 15:27:58,094 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_phase6.py', reloading
+2026-02-03 15:27:59,107 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 15:28:00,754 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 15:28:00,775 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 15:28:00,780 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 15:52:48,404 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\email\\policy.py', reloading
+2026-02-03 15:52:48,415 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\email\\headerregistry.py', reloading
+2026-02-03 15:52:48,462 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\email\\_header_value_parser.py', reloading
+2026-02-03 15:52:48,489 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\email\\contentmanager.py', reloading
+2026-02-03 15:52:49,144 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 15:52:50,538 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 15:52:50,557 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 15:52:50,562 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:11:45,482 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\overpass_client.py', reloading
+2026-02-03 16:11:45,584 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\datetime.py', reloading
+2026-02-03 16:11:45,621 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\utils.py', reloading
+2026-02-03 16:11:45,637 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\route_interpolation.py', reloading
+2026-02-03 16:11:46,263 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:11:47,558 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:11:47,575 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:11:47,579 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:12:10,204 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:12:10,583 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:12:11,899 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:12:11,916 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:12:11,919 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:13:23,594 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\config.py', reloading
+2026-02-03 16:13:24,345 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:13:25,733 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:13:25,765 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:13:25,771 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:17:05,873 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 16:17:05,874 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 16:17:05,874 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 16:17:06,948 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:17:08,429 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:17:08,446 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:17:08,451 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:19:31,680 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:19:31,684 - werkzeug - INFO -  * Detected change in 'C:\\Python313\\Lib\\encodings\\utf_16_le.py', reloading
+2026-02-03 16:19:32,491 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:19:32,977 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.26.206.46:5000
+2026-02-03 16:19:32,977 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2026-02-03 16:19:32,986 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:19:33,885 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:19:33,905 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:19:33,909 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:19:34,798 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:19:34,821 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:19:34,829 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:23:12,017 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\ibm_quantum_hardware.py', reloading
+2026-02-03 16:23:12,019 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\setup_gpu.py', reloading
+2026-02-03 16:23:12,028 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\polyline_decoder.py', reloading
+2026-02-03 16:23:12,041 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_endpoints.py', reloading
+2026-02-03 16:23:12,049 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\quantum_solver_optimized.py', reloading
+2026-02-03 16:23:12,066 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\quantum_solver_simple.py', reloading
+2026-02-03 16:23:12,113 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\test_qaoa_optimized.py', reloading
+2026-02-03 16:23:12,938 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:23:14,613 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:23:14,633 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:23:14,637 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:23:47,020 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:23:47,021 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:23:47,021 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:23:47,381 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:23:48,754 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:23:48,771 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:23:48,776 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:24:08,923 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:24:08,924 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:24:08,925 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:24:09,611 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:24:10,864 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:24:10,885 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:24:10,890 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:24:41,040 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:24:41,041 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:24:41,610 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:24:42,983 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:24:43,007 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:24:43,016 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:31:12,156 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:31:12,157 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:31:12,157 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:31:13,160 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:31:14,595 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:31:14,615 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:31:14,619 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:32:42,034 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:32:42,035 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:32:42,336 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:32:43,896 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:32:43,924 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:32:43,930 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 16:33:23,215 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:33:23,216 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:33:23,216 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 16:33:23,973 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 16:33:25,610 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 16:33:25,627 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 16:33:25,632 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 17:01:45,716 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 17:01:45,717 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 17:01:45,718 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 17:01:46,260 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 17:01:47,671 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 17:01:47,692 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 17:01:47,698 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 17:02:05,603 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 17:02:05,604 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\modules\\routing.py', reloading
+2026-02-03 17:02:06,609 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
+2026-02-03 17:02:07,967 - app - INFO - ORS_API_KEY being used: 5b3ce3597851110001cf6248fa0bf4e55e2e4b4ebad56b3b4e67df0f
+2026-02-03 17:02:07,983 - werkzeug - WARNING -  * Debugger is active!
+2026-02-03 17:02:07,987 - werkzeug - INFO -  * Debugger PIN: 100-569-395
+2026-02-03 17:11:18,472 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 17:11:18,481 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 17:11:18,481 - werkzeug - INFO -  * Detected change in 'C:\\Users\\pucha\\OneDrive\\Desktop\\New folder (3)\\backend\\app.py', reloading
+2026-02-03 17:11:19,171 - werkzeug - INFO -  * Restarting with watchdog (windowsapi)
