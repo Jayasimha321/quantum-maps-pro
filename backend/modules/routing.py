@@ -1363,9 +1363,9 @@ def find_safe_route(origin, destination, vehicle_dimensions, config, logger, max
                 'key': gh_key,
                 'algorithm': 'alternative_route',
                 'ch.disable': 'true', # Required for alternatives usually
-                'alternative_route.max_paths': 3,
-                'alternative_route.max_weight_factor': 1.4,
-                'alternative_route.max_share_factor': 0.6,
+                'alternative_route.max_paths': 10,
+                'alternative_route.max_weight_factor': 3.5,
+                'alternative_route.max_share_factor': 0.7,
                 'points_encoded': 'true',
                 'instructions': 'true'
             }
