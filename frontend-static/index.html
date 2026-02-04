@@ -1759,6 +1759,20 @@
                 this.vehicleAnalysisShown = false; // Prevents repeated dialogs
                 this.currentFitAnalysis = null;
 
+                // Vehicle Dimensions Presets (Moved from local scope)
+                this.vehiclePresets = {
+                    'Toyota|Camry|2023': { width: 1.84, height: 1.45, length: 4.97, weight: 1.6 },
+                    'Ford|F-150|2023': { width: 2.03, height: 1.98, length: 5.89, weight: 2.3 },
+                    'Honda|CR-V|2023': { width: 1.86, height: 1.69, length: 4.69, weight: 1.7 },
+                    'Tesla|Model 3|2023': { width: 1.85, height: 1.44, length: 4.69, weight: 1.8 },
+                    'BMW|X5|2023': { width: 2.00, height: 1.75, length: 4.92, weight: 2.3 },
+                    'Mercedes|Sprinter|2023': { width: 2.02, height: 2.72, length: 5.93, weight: 2.9 },
+                    'Chevrolet|Tahoe|2023': { width: 2.06, height: 1.95, length: 5.35, weight: 2.6 },
+                    'Volkswagen|Golf|2023': { width: 1.79, height: 1.46, length: 4.28, weight: 1.4 },
+                    'Dodge|RAM 2500|2023': { width: 2.03, height: 2.04, length: 6.09, weight: 3.5 },
+                    'Toyota|Sienna|2023': { width: 1.99, height: 1.78, length: 5.17, weight: 2.1 }
+                };
+
                 // Initialize application
                 this.init();
             }
@@ -1948,6 +1962,17 @@
                     } else {
                         customVehicle.style.display = 'none';
                         vehicleSelect.style.display = 'block';
+                    }
+                });
+
+                // Pre-fill dimensions when a vehicle is selected
+                safeChange('vehicleSelect', (e) => {
+                    const dims = this.vehiclePresets[e.target.value];
+                    if (dims) {
+                        if (getElement('vehicleWidth')) getElement('vehicleWidth').value = dims.width;
+                        if (getElement('vehicleHeight')) getElement('vehicleHeight').value = dims.height;
+                        if (getElement('vehicleWeight')) getElement('vehicleWeight').value = dims.weight;
+                        if (getElement('vehicleLength')) getElement('vehicleLength').value = dims.length;
                     }
                 });
             }
@@ -3441,21 +3466,8 @@
                     vehicleWeight = parseFloat(getElement('vehicleWeight').value) || 12;
                     vehicleLength = parseFloat(getElement('vehicleLength').value) || 12;
                 } else {
-                    const fallbackDims = {
-                        'Toyota|Camry|2023': { width: 1.84, height: 1.45, length: 4.97, weight: 1.6 },
-                        'Ford|F-150|2023': { width: 2.03, height: 1.98, length: 5.89, weight: 2.3 },
-                        'Honda|CR-V|2023': { width: 1.86, height: 1.69, length: 4.69, weight: 1.7 },
-                        'Tesla|Model 3|2023': { width: 1.85, height: 1.44, length: 4.69, weight: 1.8 },
-                        'BMW|X5|2023': { width: 2.00, height: 1.75, length: 4.92, weight: 2.3 },
-                        'Mercedes|Sprinter|2023': { width: 2.02, height: 2.72, length: 5.93, weight: 2.9 },
-                        'Chevrolet|Tahoe|2023': { width: 2.06, height: 1.95, length: 5.35, weight: 2.6 },
-                        'Volkswagen|Golf|2023': { width: 1.79, height: 1.46, length: 4.28, weight: 1.4 },
-                        'Dodge|RAM 2500|2023': { width: 2.03, height: 2.04, length: 6.09, weight: 3.5 },
-                        'Toyota|Sienna|2023': { width: 1.99, height: 1.78, length: 5.17, weight: 2.1 }
-                    };
-
                     const selectedVehicle = getElement('vehicleSelect').value;
-                    const dims = fallbackDims[selectedVehicle] || { width: 1.8, height: 1.5, length: 4.5, weight: 1.6 };
+                    const dims = this.vehiclePresets[selectedVehicle] || { width: 1.8, height: 1.5, length: 4.5, weight: 1.6 };
 
                     vehicleWidth = dims.width;
                     vehicleHeight = dims.height;
