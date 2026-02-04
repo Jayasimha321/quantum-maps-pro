@@ -3455,7 +3455,7 @@
             async analyzeVehicleFit() {
                 // Reset state
                 this.vehicleAnalysisShown = false;
-                this.clearVehicleAnalysis(); // Ensure clean state
+                this.clearVehicleAnalysis(false); // Ensure clean state but KEEP inputs
 
                 const vehicleType = getElement('vehicleType').value;
                 let vehicleWidth, vehicleHeight, vehicleWeight, vehicleLength;
@@ -4035,13 +4035,16 @@
                 }
             }
 
-            clearVehicleAnalysis() {
+            clearVehicleAnalysis(resetInputs = true) {
                 getElement('vehicleAnalysisResults').style.display = 'none';
                 getElement('fitDetails').style.display = 'none';
                 getElement('alternativeRouteSection').style.display = 'none';
-                getElement('vehicleType').value = 'car';
-                getElement('customVehicle').style.display = 'none';
-                getElement('vehicleSelectContainer').style.display = 'block';
+
+                if (resetInputs) {
+                    getElement('vehicleType').value = 'car';
+                    getElement('customVehicle').style.display = 'none';
+                    getElement('vehicleSelectContainer').style.display = 'block';
+                }
 
                 // Clear alternative routes from map
                 this.alternativeRouteLines.forEach(line => this.map.removeLayer(line));
