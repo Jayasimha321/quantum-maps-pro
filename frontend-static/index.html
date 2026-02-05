@@ -2473,6 +2473,13 @@
                         km = distSum / 1000;
                     }
 
+                    // Sanity check: If distance is suspiciously small (< 100m) but points are far apart, use Haversine
+                    const crowFly = haversineKm(from, to);
+                    if (km < 0.1 && crowFly > 0.5) {
+                        console.warn(`Glitch detected: Route distance ${km}km is too small compared to crow-fly ${crowFly}km. Using crow-fly.`);
+                        km = crowFly * 1.2; // Add 20% buffer for roadFactor
+                    }
+
                     const minutes = Math.round(data.duration);
                     const optimization = data.optimization;
 
