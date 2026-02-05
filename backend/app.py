@@ -164,7 +164,22 @@ def quantum_route_optimization():
                 # Statevector simulation OOMs around 24-25 qubits.
                 # Binary N=7 (18 qubits) crashed with HighLevelSynthesis OOM.
                 # Lowering limit to N=6 (max 15 qubits).
-                if num_cities > 6:
+                # Check for IBM Hardware Token
+                ibm_api_token = data.get('ibm_api_token')
+                
+                if ibm_api_token and QISKIT_OPTIMIZED_AVAILABLE:
+                    app.logger.info("⚡ IBM Quantum Token provided. Attempting hardware/cloud execution.")
+                    route_indices, algorithm_used, metadata = solve_tsp_qaoa_with_hardware(
+                        distances,
+                        shots=shots,
+                        layers=qaoa_layers,
+                        use_real_hardware=True,
+                        ibm_api_token=ibm_api_token
+                    )
+                    app.logger.info(f"Hardware/Cloud metadata: {metadata}")
+                
+                # Check Problem Size (N) for Simulation
+                elif num_cities > 6:
                     app.logger.warning(f"Problem size N={num_cities} too large for quantum simulation (OOM risk). Falling back to classical.")
                     route_indices = solve_tsp_classical(distances)
                     algorithm_used = 'Classical Optimization (Size Limit)'

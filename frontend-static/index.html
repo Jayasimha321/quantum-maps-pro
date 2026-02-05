@@ -1340,6 +1340,13 @@
                         <span class="dot"></span>
                         <span id="status">Quantum Systems Online</span>
                     </div>
+
+                    <div style="margin-top:12px;border-top:1px solid rgba(0,0,0,0.05);padding-top:10px;">
+                        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;">REAL HARDWARE
+                            (OPTIONAL)</div>
+                        <input type="password" id="ibmToken" placeholder="Paste IBM Quantum API Token"
+                            style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-family:inherit;">
+                    </div>
                 </div>
             </section>
 
@@ -2414,6 +2421,11 @@
 
                     if (CONFIG.USE_BACKEND) {
                         console.log('🚀 Attempting Backend Connection:', CONFIG.BACKEND_URL);
+
+                        // Get optional IBM Token
+                        const ibmToken = document.getElementById('ibmToken') ? document.getElementById('ibmToken').value.trim() : "";
+                        if (ibmToken) console.log("🔑 Using IBM Quantum API Token");
+
                         console.log('Payload:', { locations, mode: quantumMode });
                         try {
                             const response = await fetch(CONFIG.BACKEND_URL, {
@@ -2423,7 +2435,8 @@
                                     locations,
                                     mode: quantumMode,
                                     traffic: this.qTraffic,
-                                    transport: this.transport
+                                    transport: this.transport,
+                                    ibm_api_token: ibmToken
                                 })
                             });
 
