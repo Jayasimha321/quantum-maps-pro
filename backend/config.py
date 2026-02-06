@@ -70,7 +70,7 @@ CONFIG = {
         'intersection_density': 0.4,
         'traffic_simulation': True
     },
-    'MAX_LOCATIONS': 20,
+    'MAX_LOCATIONS': 30,
     'MIN_LOCATIONS': 2,
     'ROUTE_VISUALIZATION': {
         'point_precision': 6,

@@ -87,10 +87,14 @@ def calculate_distance_matrix(locations, transport_mode, config):
         distances = np.zeros((n, n))
         
         # Try to use OpenRouteService API for more accurate distances
+        # BUT only for small sets (N <= 10) to avoid O(N^2) API calls which cause timeouts
         use_ors = True
-        if config.get('ORS_API_KEY', '') == '':
+        if config.get('ORS_API_KEY', '') == '' or n > 10:
             use_ors = False
-            logging.info("No ORS API key provided, using enhanced distance calculation")
+            if n > 10:
+                logging.info(f"Large dataset (N={n}), using Haversine distances to prevent API timeout.")
+            else:
+                logging.info("No ORS API key provided, using enhanced distance calculation")
         
         for i in range(n):
             for j in range(i + 1, n):

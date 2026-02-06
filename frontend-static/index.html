@@ -1552,6 +1552,7 @@
             // Search settings
             MIN_SEARCH_CHARS: 3,
             MAX_SEARCH_RESULTS: 6,
+            MAX_WAYPOINTS: 28, // Max locations (30) - Start - End = 28
 
             // Vehicle analysis settings
             VEHICLE_ANALYSIS_URL: 'https://quantum-maps-pro-backend.onrender.com/analyze_vehicle_fit',
@@ -2298,7 +2299,12 @@
             }
 
             addWaypoint(latlng) {
-                const index = this.places.filter(p => p.type === 'waypoint').length + 1;
+                const currentCount = this.places.filter(p => p.type === 'waypoint').length;
+                if (currentCount >= CONFIG.MAX_WAYPOINTS) {
+                    return this.toast(`Maximum limit of ${CONFIG.MAX_WAYPOINTS} waypoints reached`, 'error');
+                }
+
+                const index = currentCount + 1;
                 const id = Date.now();
 
                 const marker = L.marker([latlng.lat, latlng.lng], {
