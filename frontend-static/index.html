@@ -2844,8 +2844,9 @@
                 this.watchId = navigator.geolocation.watchPosition(
                     (pos) => this.handleGPSUpdate(pos),
                     (err) => {
-                        console.error(err);
-                        this.toast("GPS Signal Lost", "error");
+                        console.warn("GPS Error/Timeout:", err);
+                        this.toast("GPS Signal Weak. Switching to Simulation.", "warning");
+                        this.startSimulation();
                     },
                     options
                 );
@@ -2965,6 +2966,68 @@
                     // Standard: 0 is North. fa-location-arrow (45deg NE). Correciton: -45.
                     arrowEl.style.transform = `rotate(${heading - 45}deg)`;
                 }
+            }
+
+            startSimulation() {
+                if (this.simulationInterval) clearInterval(this.simulationInterval);
+
+                this.toast("Simulating Drive (GPS Unavailable)", "info");
+
+                let pathIndex = 0;
+                let progress = 0;
+                const path = this.navPath;
+                if (!path || path.length < 2) return;
+
+                // Speed: 50 km/h = ~14 m/s. 
+                // Update every 100ms.
+                const updateFreq = 100; // ms
+                const speedMps = 20; // 72 km/h
+                const stepDist = speedMps * (updateFreq / 1000); // dist per tick
+
+                this.simulationInterval = setInterval(() => {
+                    if (!this.isNavigating) {
+                        clearInterval(this.simulationInterval);
+                        return;
+                    }
+
+                    // Get current segment
+                    const p1 = path[pathIndex];
+                    const p2 = path[pathIndex + 1];
+
+                    if (!p2) {
+                        this.speak("You have arrived.");
+                        this.stopNavigation();
+                        return;
+                    }
+
+                    const dist = p1.distanceTo(p2);
+                    progress += stepDist;
+
+                    if (progress >= dist) {
+                        progress = 0;
+                        pathIndex++;
+                        if (pathIndex >= path.length - 1) {
+                            this.speak("You have arrived.");
+                            this.stopNavigation();
+                            return;
+                        }
+                    } else {
+                        // Interpolate
+                        const ratio = progress / dist;
+                        const lat = p1.lat + (p2.lat - p1.lat) * ratio;
+                        const lng = p1.lng + (p2.lng - p1.lng) * ratio;
+
+                        // Fake GPS Event
+                        this.handleGPSUpdate({
+                            coords: {
+                                latitude: lat,
+                                longitude: lng,
+                                speed: speedMps,
+                                heading: null // Let handleGPSUpdate calc it
+                            }
+                        });
+                    }
+                }, updateFreq);
             }
 
             stopNavigation() {
