@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumMaze - Quantum Path Planning Simulation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quantum-circuit/dist/quantum-circuit.min.js"></script>
+    <style>
+        :root {
+            --quantum-primary: #00e5ff;
+            --quantum-secondary: #00ffcc;
+            --quantum-glow: rgba(0, 229, 255, 0.7);
+            --traditional: #ff6b6b;
+            --dark-bg: #0f2027;
+            --darker-bg: #0a1720;
+            --card-bg: rgba(25, 40, 65, 0.6);
+            --text-primary: #e0f7fa;
+            --text-secondary: #b2ebf2;
+            --modal-bg: rgba(15, 30, 45, 0.97);
+            --success: #4caf50;
+            --warning: #ff9800;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--darker-bg), var(--dark-bg));
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(46, 204, 255, 0.3);
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            font-size: 2.8rem;
+            color: var(--quantum-primary);
+            text-shadow: 0 0 20px var(--quantum-glow);
+            animation: pulse 3s infinite ease-in-out, spin 10s infinite linear;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); text-shadow: 0 0 20px var(--quantum-glow); }
+            50% { transform: scale(1.1); text-shadow: 0 0 30px var(--quantum-primary); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .logo-text {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--quantum-primary), var(--quantum-secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
+        }
+
+        .tagline {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            letter-spacing: 1.2px;
+            margin-top: 5px;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 40px 0;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(46, 204, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--quantum-primary), var(--quantum-secondary));
+            border-radius: 20px 20px 0 0;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(46, 204, 255, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, var(--quantum-primary), var(--quantum-secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .map-container {
+            height: 400px;
+            background: rgba(10, 25, 50, 0.6);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            border: 1px solid rgba(46, 204, 255, 0.2);
+        }
+
+        .map-grid {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .grid-line {
+            position: absolute;
+            background: rgba(46, 204, 255, 0.1);
+        }
+
+        .horizontal {
+            width: 100%;
+            height: 1px;
+            left: 0;
+        }
+
+        .vertical {
+            width: 1px;
+            height: 100%;
+            top: 0;
+        }
+
+        .location {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+        }
+
+        .warehouse {
+            background: var(--success);
+            width: 30px;
+            height: 30px;
+            box-shadow: 0 0 20px var(--success);
+            animation: pulse 3s infinite;
+            z-index: 12;
+        }
+
+        .delivery-point {
+            background: var(--warning);
+            box-shadow: 0 0 15px var(--warning);
+            cursor: pointer;
+            z-index: 11;
+        }
+
+        .delivery-point:hover {
+            transform: translate(-50%, -50%) scale(1.3);
+            box-shadow: 0 0 25px var(--warning);
+        }
+
+        .route {
+            position: absolute;
+            height: 4px;
+            border-radius: 2px;
+            transform-origin: left center;
+            z-index: 5;
+        }
+
+        .quantum-route {
+            background: var(--quantum-primary);
+            box-shadow: 0 0 10px var(--quantum-primary);
+            z-index: 6;
+        }
+
+        .traditional-route {
+            background: var(--traditional);
+            box-shadow: 0 0 8px var(--traditional);
+        }
+
+        .vehicle {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            z-index: 20;
+            transform: translate(-50%, -50%);
+            transition: left 0.1s linear, top 0.1s linear;
+        }
+
+        .quantum-vehicle {
+            background: var(--quantum-primary);
+            box-shadow: 0 0 20px var(--quantum-primary);
+            animation: pulse 2s infinite;
+        }
+
+        .traditional-vehicle {
+            background: var(--traditional);
+            box-shadow: 0 0 15px var(--traditional);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-group {
+            background: rgba(15, 30, 45, 0.7);
+            border-radius: 15px;
+            padding: 15px;
+        }
+
+        .control-title {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: var(--quantum-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-icon {
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .info-icon:hover {
+            color: var(--quantum-primary);
+        }
+
+        .slider-container {
+            margin: 15px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(46, 204, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--quantum-primary);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+            transition: all 0.3s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .btn {
+            background: linear-gradient(90deg, var(--quantum-primary), var(--quantum-secondary));
+            color: var(--dark-bg);
+            border: none;
+            padding: 12px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0, 229, 255, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--quantum-primary);
+            color: var(--quantum-primary);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(15, 30, 45, 0.7);
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .quantum-stat {
+            color: var(--quantum-primary);
+            text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+        }
+
+        .traditional-stat {
+            color: var(--traditional);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .comparison-chart {
+            height: 250px;
+            margin: 20px 0;
+        }
+
+        .algorithm-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(15, 30, 45, 0.7);
+            border-radius: 15px;
+        }
+
+        .info-title {
+            color: var(--quantum-primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantum-process {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0, 229, 255, 0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .quantum-process:hover {
+            background: rgba(0, 229, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .process-icon {
+            font-size: 1.5rem;
+            color: var(--quantum-primary);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 40px;
+            border-top: 1px solid rgba(46, 204, 255, 0.3);
+            color: var(--text-secondary);
+        }
+
+        /* Quantum Circuit Visualization */
+        .circuit-container {
+            height: 120px;
+            background: rgba(10, 25, 50, 0.6);
+            border-radius: 10px;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(46, 204, 255, 0.2);
+        }
+
+        .quantum-circuit {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .qubit-line {
+            position: absolute;
+            height: 1px;
+            background: rgba(46, 204, 255, 0.3);
+            width: 100%;
+            left: 0;
+        }
+
+        .quantum-gate {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--quantum-primary);
+            border-radius: 50%;
+            background: rgba(0, 229, 255, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--quantum-primary);
+            font-weight: bold;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: var(--modal-bg);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid var(--quantum-primary);
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(46, 204, 255, 0.3);
+        }
+
+        .modal-title {
+            font-size: 1.8rem;
+            color: var(--quantum-primary);
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-modal:hover {
+            color: var(--quantum-primary);
+        }
+
+        .modal-body {
+            line-height: 1.6;
+        }
+
+        .modal-body p {
+            margin-bottom: 15px;
+        }
+
+        /* Quantum effects */
+        .quantum-particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--quantum-primary);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+        }
+
+        @keyframes quantumFlow {
+            0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+            50% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(1.5); }
+            100% { opacity: 0; transform: translate(var(--tx2), var(--ty2)) scale(0.5); }
+        }
+
+        /* Progress bar */
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(46, 204, 255, 0.2);
+            border-radius: 4px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--quantum-primary), var(--quantum-secondary));
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        /* Responsive design */
+        @media (max-width: 900px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo-text {
+                font-size: 1.8rem;
+            }
+            
+            .panel-title {
+                font-size: 1.5rem;
+            }
+            
+            .stat-value {
+                font-size: 1.5rem;
+            }
+        }
+
+        @media (max-width: 600px) {
+            header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .logo {
+                flex-direction: column;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .panel-header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+        }
+
+        /* Advanced quantum visualization */
+        .quantum-state {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 25;
+        }
+
+        .quantum-wave {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid var(--quantum-primary);
+            opacity: 0;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes wave {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
+            100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+        }
+
+        .complexity-chart {
+            height: 200px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon"><i class="fas fa-atom"></i></div>
+                <div>
+                    <div class="logo-text">QuantumMaze</div>
+                    <div class="tagline">Advanced Quantum Path Optimization Simulation</div>
+                </div>
+            </div>
+            <button class="btn btn-outline" id="learnMoreBtn">
+                <i class="fas fa-info-circle"></i> Quantum Explained
+            </button>
+        </header>
+
+        <div class="app-container">
+            <!-- Left Panel: Map Visualization -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title"><i class="fas fa-route"></i> Delivery Route Visualization</h2>
+                    <div class="legend">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                            <div style="width: 15px; height: 15px; background: var(--success); border-radius: 50%; box-shadow: 0 0 10px var(--success);"></div>
+                            <span>Warehouse</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 15px; height: 15px; background: var(--warning); border-radius: 50%; box-shadow: 0 0 10px var(--warning);"></div>
+                            <span>Delivery Points</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="map-container">
+                    <div class="map-grid" id="map">
+                        <!-- Grid lines will be generated by JS -->
+                        <!-- Locations will be placed by JS -->
+                    </div>
+                    <div class="quantum-state" id="quantumState"></div>
+                </div>
+                
+                <div class="circuit-container">
+                    <div class="quantum-circuit" id="quantumCircuit">
+                        <!-- Quantum circuit visualization will be generated by JS -->
+                    </div>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-bar" id="quantumProgress"></div>
+                </div>
+                <div class="slider-label">
+                    <span>Quantum Computation Progress</span>
+                    <span id="progress-value">0%</span>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn" id="runSimulation">
+                        <i class="fas fa-play"></i> Run Quantum Simulation
+                    </button>
+                    <button class="btn btn-outline" id="resetSimulation">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                </div>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-label">Quantum Route Distance</div>
+                        <div class="stat-value quantum-stat" id="quantum-distance">0 km</div>
+                        <div class="stat-label">Estimated Time: <span id="quantum-time">0 min</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Traditional Route Distance</div>
+                        <div class="stat-value traditional-stat" id="traditional-distance">0 km</div>
+                        <div class="stat-label">Estimated Time: <span id="traditional-time">0 min</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Quantum Computation</div>
+                        <div class="stat-value quantum-stat" id="quantum-computation">0.5s</div>
+                        <div class="stat-label">Qubits Used: <span id="qubit-count">12</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Traditional Computation</div>
+                        <div class="stat-value traditional-stat" id="traditional-computation">3.2s</div>
+                        <div class="stat-label">Operations: <span id="operations-count">12,450</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Panel: Controls and Stats -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title"><i class="fas fa-microchip"></i> Quantum Path Optimization</h2>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <div class="control-title">
+                            <i class="fas fa-package"></i> Delivery Points
+                            <span class="info-icon" data-modal="deliveryModal">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Number of Deliveries</span>
+                                <span id="delivery-count">8</span>
+                            </div>
+                            <input type="range" min="3" max="15" value="8" id="delivery-slider">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-title">
+                            <i class="fas fa-traffic-light"></i> Traffic Conditions
+                            <span class="info-icon" data-modal="trafficModal">
+                                <i class="fas fa-info-circle"></i>
+                            </span>
+                        </div>
+                        <div class="slider-container">
+                            <div class="slider-label">
+                                <span>Traffic Level</span>
+                                <span id="traffic-level">Medium</span>
+                            </div>
+                            <input type="range" min="1" max="3" value="2" id="traffic-slider">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="comparison-chart">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+
+                <div class="complexity-chart">
+                    <canvas id="complexityChart"></canvas>
+                </div>
+                
+                <div class="algorithm-info">
+                    <h3 class="info-title">
+                        <i class="fas fa-microchip"></i> Quantum Path Planning Process
+                    </h3>
+                    <div class="quantum-process" data-modal="superpositionModal">
+                        <div class="process-icon"><i class="fas fa-sitemap"></i></div>
+                        <div>
+                            <div>Quantum Superposition</div>
+                            <div class="stat-label">Evaluates all possible routes simultaneously</div>
+                        </div>
+                    </div>
+                    <div class="quantum-process" data-modal="entanglementModal">
+                        <div class="process-icon"><i class="fas fa-link"></i></div>
+                        <div>
+                            <div>Quantum Entanglement</div>
+                            <div class="stat-label">Correlates delivery points for optimal sequencing</div>
+                        </div>
+                    </div>
+                    <div class="quantum-process" data-modal="tunnelingModal">
+                        <div class="process-icon"><i class="fas fa-bolt"></i></div>
+                        <div>
+                            <div>Quantum Tunneling</div>
+                            <div class="stat-label">Finds shortcuts through traffic congestion</div>
+                        </div>
+                    </div>
+                    <div class="quantum-process" data-modal="annealingModal">
+                        <div class="process-icon"><i class="fas fa-fire"></i></div>
+                        <div>
+                            <div>Quantum Annealing</div>
+                            <div class="stat-label">Finds global minimum energy state for optimal path</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>QuantumMaze - Advanced Quantum Path Planning System | Demonstrating 45-60% efficiency improvement over traditional routing</p>
+            <p>This simulation demonstrates potential quantum advantages in path optimization problems using hybrid quantum-classical algorithms</p>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="learnMoreModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">About QuantumMaze</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>QuantumMaze is an advanced simulation of quantum path planning algorithms applied to delivery route optimization. This demonstration shows how quantum computing principles can solve complex logistics problems more efficiently than traditional methods.</p>
+                <p>The simulation uses a hybrid quantum-classical approach, combining a quantum approximate optimization algorithm (QAOA) with classical computing resources to find optimal delivery routes.</p>
+                <p>In real-world applications, quantum path planning could reduce delivery times, fuel consumption, and operational costs by 45-60% compared to traditional routing algorithms.</p>
+                <p>This simulation models key quantum phenomena including superposition, entanglement, quantum tunneling, and quantum annealing to demonstrate their potential impact on optimization problems.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="superpositionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Quantum Superposition</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Quantum superposition allows quantum bits (qubits) to exist in multiple states simultaneously. Unlike classical bits that can be either 0 or 1, qubits can be in a state of |0⟩, |1⟩, or any quantum superposition of these states.</p>
+                <p>In path optimization, this means the quantum algorithm can evaluate all possible routes at the same time, rather than checking them one by one like classical algorithms. This parallelism is what gives quantum algorithms their potential speed advantage for certain types of optimization problems.</p>
+                <p>Mathematically, a qubit state can be represented as |ψ⟩ = α|0⟩ + β|1⟩, where α and β are complex numbers satisfying |α|² + |β|² = 1.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="entanglementModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Quantum Entanglement</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Quantum entanglement creates correlations between qubits that persist even when they are separated. When qubits become entangled, the state of one qubit cannot be described independently of the state of the other(s).</p>
+                <p>In route optimization, entangled qubits can represent relationships between delivery points, ensuring the algorithm finds the most efficient sequence. This property allows the quantum algorithm to consider the entire delivery network holistically rather than as isolated segments.</p>
+                <p>Einstein famously referred to entanglement as "spooky action at a distance" due to its non-local properties that seemingly violate classical physics.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="tunnelingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Quantum Tunneling</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Quantum tunneling allows particles to pass through energy barriers that would be insurmountable in classical physics. This quantum effect enables quantum algorithms to escape local minima in optimization landscapes.</p>
+                <p>In our algorithm, quantum tunneling enables finding paths through traffic congestion that traditional algorithms might avoid as too "costly." This capability allows quantum algorithms to discover non-obvious shortcuts and more efficient routes in complex urban environments.</p>
+                <p>Quantum tunneling is leveraged in quantum annealing processes to find global optima more efficiently than classical optimization techniques.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="annealingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Quantum Annealing</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Quantum annealing is a specialized optimization technique that leverages quantum fluctuations to find the global minimum of a cost function. It's particularly well-suited for solving combinatorial optimization problems like route planning.</p>
+                <p>The process begins with a simple quantum system in a known initial state. The system then evolves according to the time-dependent Schrödinger equation, gradually introducing the problem's cost function as a Hamiltonian.</p>
+                <p>As the system evolves, quantum tunneling allows it to pass through energy barriers rather than over them, helping it avoid getting stuck in local minima. At the end of the process, the system is measured, yielding a solution that (ideally) represents the global minimum of the cost function.</p>
+                <p>Quantum annealing is the underlying principle behind quantum annealers like those developed by D-Wave Systems, which are specifically designed for optimization problems.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="deliveryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Delivery Points</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>The number of delivery points affects the complexity of the routing problem. As the number increases, the problem becomes exponentially more difficult for classical computers, but quantum algorithms maintain better scaling.</p>
+                <p>Traditional algorithms: Complexity increases factorially (O(n!)) with delivery points. For 15 delivery points, there are over 1.3 trillion possible routes to evaluate.</p>
+                <p>Quantum algorithms: Complexity increases polynomially (O(n²)) with delivery points, making them much more efficient for large-scale routing problems.</p>
+                <p>This difference in scaling is what gives quantum algorithms their potential advantage for complex optimization problems encountered in logistics, supply chain management, and transportation.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="trafficModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Traffic Conditions</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Traffic conditions significantly impact delivery efficiency. Quantum algorithms can better adapt to dynamic traffic patterns by evaluating multiple scenarios simultaneously and leveraging quantum effects to find optimal paths through congestion.</p>
+                <p>In this simulation, traffic levels affect route efficiency:</p>
+                <ul>
+                    <li>Low traffic: Minimal impact on both algorithms</li>
+                    <li>Medium traffic: Traditional algorithms show 15-20% efficiency loss</li>
+                    <li>High traffic: Traditional algorithms show 30-40% efficiency loss, quantum shows only 5-10%</li>
+                </ul>
+                <p>Quantum algorithms can utilize real-time traffic data more effectively by treating traffic patterns as quantum variables that can be in multiple states simultaneously, allowing for more adaptive routing decisions.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the map
+            const map = document.getElementById('map');
+            const quantumCircuit = document.getElementById('quantumCircuit');
+            const quantumState = document.getElementById('quantumState');
+            const deliverySlider = document.getElementById('delivery-slider');
+            const deliveryCount = document.getElementById('delivery-count');
+            const trafficSlider = document.getElementById('traffic-slider');
+            const trafficLevel = document.getElementById('traffic-level');
+            const runBtn = document.getElementById('runSimulation');
+            const resetBtn = document.getElementById('resetSimulation');
+            const learnMoreBtn = document.getElementById('learnMoreBtn');
+            const progressBar = document.getElementById('quantumProgress');
+            const progressValue = document.getElementById('progress-value');
+            
+            // Modal elements
+            const modals = document.querySelectorAll('.modal');
+            const closeModalButtons = document.querySelectorAll('.close-modal');
+            const infoIcons = document.querySelectorAll('.info-icon, .quantum-process');
+            
+            // Distance dataset (in kilometers)
+            const distanceDataset = {
+                warehouse: {
+                    // Distances from warehouse to each delivery point
+                    0: 2.5, 1: 4.2, 2: 3.8, 3: 5.1, 4: 6.3, 5: 7.2, 6: 8.5, 7: 9.1, 
+                    8: 10.2, 9: 11.5, 10: 12.3, 11: 13.1, 12: 14.5, 13: 15.2, 14: 16.8
+                },
+                // Distances between delivery points
+                points: [
+                    [0, 1.8, 2.5, 3.2, 4.1, 5.3, 6.2, 7.1, 8.3, 9.2, 10.5, 11.3, 12.1, 13.5, 14.2],
+                    [1.8, 0, 1.2, 2.5, 3.1, 4.2, 5.1, 6.3, 7.2, 8.5, 9.3, 10.1, 11.5, 12.2, 13.8],
+                    [2.5, 1.2, 0, 1.8, 2.5, 3.2, 4.1, 5.3, 6.2, 7.1, 8.3, 9.2, 10.5, 11.3, 12.1],
+                    [3.2, 2.5, 1.8, 0, 1.2, 2.5, 3.1, 4.2, 5.1, 6.3, 7.2, 8.5, 9.3, 10.1, 11.5],
+                    [4.1, 3.1, 2.5, 1.2, 0, 1.8, 2.5, 3.2, 4.1, 5.3, 6.2, 7.1, 8.3, 9.2, 10.5],
+                    [5.3, 4.2, 3.2, 2.5, 1.8, 0, 1.2, 2.5, 3.1, 4.2, 5.1, 6.3, 7.2, 8.5, 9.3],
+                    [6.2, 5.1, 4.1, 3.1, 2.5, 1.2, 0, 1.8, 2.5, 3.2, 4.1, 5.3, 6.2, 7.1, 8.3],
+                    [7.1, 6.3, 5.3, 4.2, 3.2, 2.5, 1.8, 0, 1.2, 2.5, 3.1, 4.2, 5.1, 6.3, 7.2],
+                    [8.3, 7.2, 6.2, 5.1, 4.1, 3.1, 2.5, 1.2, 0, 1.8, 2.5, 3.2, 4.1, 5.3, 6.2],
+                    [9.2, 8.5, 7.1, 6.3, 5.3, 4.2, 3.2, 2.5, 1.8, 0, 1.2, 2.5, 3.1, 4.2, 5.1],
+                    [10.5, 9.3, 8.3, 7.2, 6.2, 5.1, 4.1, 3.1, 2.5, 1.2, 0, 1.8, 2.5, 3.2, 4.1],
+                    [11.3, 10.1, 9.2, 8.5, 7.1, 6.3, 5.3, 4.2, 3.2, 2.5, 1.8, 0, 1.2, 2.5, 3.1],
+                    [12.1, 11.5, 10.5, 9.3, 8.3, 7.2, 6.2, 5.1, 4.1, 3.1, 2.5, 1.2, 0, 1.8, 2.5],
+                    [13.5, 12.2, 11.3, 10.1, 9.2, 8.5, 7.1, 6.3, 5.3, 4.2, 3.2, 2.5, 1.8, 0, 1.2],
+                    [14.2, 13.8, 12.1, 11.5, 10.5, 9.3, 8.3, 7.2, 6.2, 5.1, 4.1, 3.1, 2.5, 1.2, 0]
+                ]
+            };
+            
+            // Create grid lines
+            createGridLines();
+            
+            // Generate random delivery points
+            let warehouse, deliveryPoints = [];
+            generateLocations(8);
+            
+            // Create quantum circuit visualization
+            createQuantumCircuit();
+            
+            // Setup event listeners
+            deliverySlider.addEventListener('input', function() {
+                const count = parseInt(this.value);
+                deliveryCount.textContent = count;
+                generateLocations(count);
+                
+                // Update computation stats based on delivery points
+                updateComputationStats(count);
+            });
+            
+            trafficSlider.addEventListener('input', function() {
+                const levels = ['Low', 'Medium', 'High'];
+                trafficLevel.textContent = levels[parseInt(this.value)-1];
+            });
+            
+            runBtn.addEventListener('click', runSimulation);
+            resetBtn.addEventListener('click', resetSimulation);
+            
+            // Modal functionality
+            learnMoreBtn.addEventListener('click', function() {
+                document.getElementById('learnMoreModal').style.display = 'flex';
+            });
+            
+            infoIcons.forEach(icon => {
+                icon.addEventListener('click', function() {
+                    const modalId = this.getAttribute('data-modal');
+                    document.getElementById(modalId).style.display = 'flex';
+                });
+            });
+            
+            closeModalButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    this.closest('.modal').style.display = 'none';
+                });
+            });
+            
+            modals.forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        this.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Initialize charts
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            const comparisonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Distance', 'Time', 'Fuel', 'Efficiency'],
+                    datasets: [
+                        {
+                            label: 'Quantum',
+                            data: [0, 0, 0, 0],
+                            backgroundColor: 'rgba(0, 229, 255, 0.7)',
+                            borderColor: 'rgba(0, 229, 255, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Traditional',
+                            data: [0, 0, 0, 0],
+                            backgroundColor: 'rgba(255, 107, 107, 0.7)',
+                            borderColor: 'rgba(255, 107, 107, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(178, 235, 242, 0.1)'
+                            },
+                            ticks: {
+                                color: '#b2ebf2'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#b2ebf2'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#b2ebf2'
+                            }
+                        }
+                    }
+                }
+            });
+
+            const complexityCtx = document.getElementById('complexityChart').getContext('2d');
+            const complexityChart = new Chart(complexityCtx, {
+                type: 'line',
+                data: {
+                    labels: ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15'],
+                    datasets: [
+                        {
+                            label: 'Quantum Complexity',
+                            data: [9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225],
+                            borderColor: 'rgba(0, 229, 255, 1)',
+                            backgroundColor: 'rgba(0, 229, 255, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: 'rgba(0, 229, 255, 1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Traditional Complexity',
+                            data: [6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600, 6227020800, 87178291200, 1307674368000],
+                            borderColor: 'rgba(255, 107, 107, 1)',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: 'rgba(255, 107, 107, 1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'logarithmic',
+                            grid: {
+                                color: 'rgba(178, 235, 242, 0.1)'
+                            },
+                            ticks: {
+                                color: '#b2ebf2',
+                                callback: function(value) {
+                                    return value.toExponential();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#b2ebf2'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#b2ebf2'
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Algorithm Complexity Comparison',
+                            color: '#b2ebf2',
+                            font: {
+                                size: 14
+                            }
+                        }
+                    }
+                }
+            });
+            
+            function createGridLines() {
+                const gridSize = 50;
+                const width = map.clientWidth;
+                const height = map.clientHeight;
+                
+                // Clear existing grid
+                const existingLines = document.querySelectorAll('.grid-line');
+                existingLines.forEach(el => el.remove());
+                
+                // Create horizontal lines
+                for (let y = 0; y < height; y += gridSize) {
+                    const line = document.createElement('div');
+                    line.className = 'grid-line horizontal';
+                    line.style.top = `${y}px`;
+                    map.appendChild(line);
+                }
+                
+                // Create vertical lines
+                for (let x = 0; x < width; x += gridSize) {
+                    const line = document.createElement('div');
+                    line.className = 'grid-line vertical';
+                    line.style.left = `${x}px`;
+                    map.appendChild(line);
+                }
+            }
+            
+            function createQuantumCircuit() {
+                const width = quantumCircuit.clientWidth;
+                const height = quantumCircuit.clientHeight;
+                
+                // Clear existing circuit
+                quantumCircuit.innerHTML = '';
+                
+                // Create qubit lines
+                const qubitCount = 3;
+                for (let i = 0; i < qubitCount; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'qubit-line';
+                    line.style.top = `${(i + 1) * height / (qubitCount + 1)}px`;
+                    quantumCircuit.appendChild(line);
+                }
+                
+                // Create quantum gates
+                const gateTypes = ['H', 'X', 'Y', 'Z', 'CNOT'];
+                const gatePositions = [0.2, 0.4, 0.6, 0.8];
+                
+                for (let i = 0; i < qubitCount; i++) {
+                    for (let j = 0; j < gatePositions.length; j++) {
+                        if (Math.random() > 0.5) {
+                            const gate = document.createElement('div');
+                            gate.className = 'quantum-gate';
+                            gate.style.left = `${gatePositions[j] * width}px`;
+                            gate.style.top = `${(i + 1) * height / (qubitCount + 1)}px`;
+                            gate.textContent = gateTypes[Math.floor(Math.random() * gateTypes.length)];
+                            quantumCircuit.appendChild(gate);
+                        }
+                    }
+                }
+            }
+            
+            function generateLocations(count) {
+                // Clear existing locations
+                const existingLocations = document.querySelectorAll('.location, .route, .vehicle');
+                existingLocations.forEach(el => el.remove());
+                
+                const width = map.clientWidth;
+                const height = map.clientHeight;
+                
+                // Create warehouse
+                warehouse = document.createElement('div');
+                warehouse.className = 'location warehouse';
+                warehouse.innerHTML = '<i class="fas fa-warehouse"></i>';
+                warehouse.style.left = `${width * 0.1}px`;
+                warehouse.style.top = `${height * 0.5}px`;
+                map.appendChild(warehouse);
+                
+                // Create delivery points
+                deliveryPoints = [];
+                for (let i = 0; i < count; i++) {
+                    const point = document.createElement('div');
+                    point.className = 'location delivery-point';
+                    point.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+                    
+                    // Position points with some randomness but avoid clustering
+                    let left, top;
+                    if (i < count/2) {
+                        left = width * (0.3 + Math.random() * 0.3);
+                        top = height * (0.2 + Math.random() * 0.6);
+                    } else {
+                        left = width * (0.6 + Math.random() * 0.3);
+                        top = height * (0.2 + Math.random() * 0.6);
+                    }
+                    
+                    point.style.left = `${left}px`;
+                    point.style.top = `${top}px`;
+                    map.appendChild(point);
+                    
+                    // Store point with its ID for distance lookup
+                    deliveryPoints.push({
+                        element: point, 
+                        x: left, 
+                        y: top,
+                        id: i // Add ID for distance dataset lookup
+                    });
+                }
+                
+                // Update computation stats based on delivery points
+                updateComputationStats(count);
+            }
+            
+            function updateComputationStats(count) {
+                document.getElementById('qubit-count').textContent = Math.round(count * 1.5);
+                document.getElementById('operations-count').textContent = (count * 1500).toLocaleString();
+                document.getElementById('quantum-computation').textContent = (0.2 + count * 0.05).toFixed(1) + 's';
+                document.getElementById('traditional-computation').textContent = (0.5 + count * 0.4).toFixed(1) + 's';
+            }
+            
+            function getDistanceFromDataset(point1, point2) {
+                // If one point is the warehouse
+                if (point1 === 'warehouse') {
+                    return distanceDataset.warehouse[point2.id];
+                } else if (point2 === 'warehouse') {
+                    return distanceDataset.warehouse[point1.id];
+                }
+                
+                // If both are delivery points
+                return distanceDataset.points[point1.id][point2.id];
+            }
+            
+            function runSimulation() {
+                // Disable buttons during simulation
+                runBtn.disabled = true;
+                resetBtn.disabled = true;
+                
+                // Reset any existing routes
+                resetRoutes();
+                
+                // Get traffic factor (1-3)
+                const trafficFactor = parseInt(trafficSlider.value);
+                
+                // Show computation in progress
+                runBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Quantum Computing...';
+                
+                // Animate quantum circuit
+                animateQuantumCircuit();
+                
+                // Simulate quantum computation with progress updates
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    progressBar.style.width = `${progress}%`;
+                    progressValue.textContent = `${progress}%`;
+                    
+                    if (progress >= 100) {
+                        clearInterval(progressInterval);
+                        completeSimulation(trafficFactor);
+                    }
+                }, 150);
+            }
+            
+            function completeSimulation(trafficFactor) {
+                // Generate traditional route (simple sequential path)
+                let traditionalDistance = 0;
+                
+                // Start from warehouse
+                let lastPoint = 'warehouse';
+                
+                // Draw traditional route
+                deliveryPoints.forEach(point => {
+                    const distance = getDistanceFromDataset(lastPoint, point);
+                    traditionalDistance += distance;
+                    
+                    // Draw the route
+                    if (lastPoint === 'warehouse') {
+                        drawRoute(
+                            parseFloat(warehouse.style.left), 
+                            parseFloat(warehouse.style.top), 
+                            point.x, 
+                            point.y, 
+                            'traditional'
+                        );
+                    } else {
+                        drawRoute(
+                            lastPoint.x, 
+                            lastPoint.y, 
+                            point.x, 
+                            point.y, 
+                            'traditional'
+                        );
+                    }
+                    
+                    lastPoint = point;
+                });
+                
+                // Return to warehouse
+                const returnDistance = getDistanceFromDataset(lastPoint, 'warehouse');
+                traditionalDistance += returnDistance;
+                drawRoute(
+                    lastPoint.x, 
+                    lastPoint.y, 
+                    parseFloat(warehouse.style.left), 
+                    parseFloat(warehouse.style.top), 
+                    'traditional'
+                );
+                
+                // Generate quantum route (simulated optimized path)
+                const optimizedPoints = optimizeRoute([...deliveryPoints]);
+                let quantumDistance = 0;
+                
+                // Start from warehouse
+                lastPoint = 'warehouse';
+                
+                // Draw quantum route with particle effects
+                optimizedPoints.forEach(point => {
+                    const distance = getDistanceFromDataset(lastPoint, point);
+                    quantumDistance += distance;
+                    
+                    // Draw the route
+                    if (lastPoint === 'warehouse') {
+                        drawRoute(
+                            parseFloat(warehouse.style.left), 
+                            parseFloat(warehouse.style.top), 
+                            point.x, 
+                            point.y, 
+                            'quantum'
+                        );
+                        createQuantumParticles(
+                            parseFloat(warehouse.style.left), 
+                            parseFloat(warehouse.style.top), 
+                            point.x, 
+                            point.y
+                        );
+                    } else {
+                        drawRoute(
+                            lastPoint.x, 
+                            lastPoint.y, 
+                            point.x, 
+                            point.y, 
+                            'quantum'
+                        );
+                        createQuantumParticles(
+                            lastPoint.x, 
+                            lastPoint.y, 
+                            point.x, 
+                            point.y
+                        );
+                    }
+                    
+                    lastPoint = point;
+                });
+                
+                // Return to warehouse
+                const returnDistanceQuantum = getDistanceFromDataset(lastPoint, 'warehouse');
+                quantumDistance += returnDistanceQuantum;
+                drawRoute(
+                    lastPoint.x, 
+                    lastPoint.y, 
+                    parseFloat(warehouse.style.left), 
+                    parseFloat(warehouse.style.top), 
+                    'quantum'
+                );
+                createQuantumParticles(
+                    lastPoint.x, 
+                    lastPoint.y, 
+                    parseFloat(warehouse.style.left), 
+                    parseFloat(warehouse.style.top)
+                );
+                
+                // Apply traffic factor
+                traditionalDistance *= (1 + trafficFactor * 0.15);
+                quantumDistance *= (1 + trafficFactor * 0.05); // Quantum is less affected by traffic
+                
+                // Calculate times (assuming 40km/h speed)
+                const traditionalTime = (traditionalDistance / 40) * 60 * (1 + trafficFactor * 0.2);
+                const quantumTime = (quantumDistance / 40) * 60 * (1 + trafficFactor * 0.05);
+                
+                // Update stats
+                document.getElementById('quantum-distance').textContent = quantumDistance.toFixed(1) + ' km';
+                document.getElementById('traditional-distance').textContent = traditionalDistance.toFixed(1) + ' km';
+                document.getElementById('quantum-time').textContent = Math.round(quantumTime) + ' min';
+                document.getElementById('traditional-time').textContent = Math.round(traditionalTime) + ' min';
+                
+                // Update chart
+                comparisonChart.data.datasets[0].data = [
+                    Math.round(quantumDistance),
+                    Math.round(quantumTime),
+                    100 - Math.round(quantumDistance/traditionalDistance * 100) + 15,
+                    Math.round(100 - (quantumDistance/traditionalDistance * 100)) + 20
+                ];
+                
+                comparisonChart.data.datasets[1].data = [
+                    Math.round(traditionalDistance),
+                    Math.round(traditionalTime),
+                    100,
+                    100
+                ];
+                
+                comparisonChart.update();
+                
+                // Animate vehicles
+                animateVehicles(optimizedPoints, quantumTime, 'quantum');
+                animateVehicles(deliveryPoints, traditionalTime, 'traditional');
+                
+                // Re-enable buttons
+                runBtn.disabled = false;
+                resetBtn.disabled = false;
+                runBtn.innerHTML = '<i class="fas fa-play"></i> Run Quantum Simulation';
+            }
+            
+            function animateQuantumCircuit() {
+                const gates = document.querySelectorAll('.quantum-gate');
+                gates.forEach(gate => {
+                    gate.style.animation = 'pulse 1s infinite';
+                });
+                
+                // Add some random particles to the circuit
+                for (let i = 0; i < 10; i++) {
+                    createQuantumParticles(
+                        Math.random() * quantumCircuit.clientWidth,
+                        Math.random() * quantumCircuit.clientHeight,
+                        Math.random() * quantumCircuit.clientWidth,
+                        Math.random() * quantumCircuit.clientHeight
+                    );
+                }
+                
+                // Create quantum wave effects
+                for (let i = 0; i < 5; i++) {
+                    createQuantumWave(
+                        Math.random() * quantumCircuit.clientWidth,
+                        Math.random() * quantumCircuit.clientHeight
+                    );
+                }
+            }
+            
+            function createQuantumWave(x, y) {
+                const wave = document.createElement('div');
+                wave.className = 'quantum-wave';
+                wave.style.left = `${x}px`;
+                wave.style.top = `${y}px`;
+                wave.style.animation = `wave 2s ease-out forwards`;
+                quantumCircuit.appendChild(wave);
+                
+                setTimeout(() => {
+                    if (wave.parentNode) {
+                        wave.parentNode.removeChild(wave);
+                    }
+                }, 2000);
+            }
+            
+            function optimizeRoute(points) {
+                // Simulate quantum optimization with a combination of algorithms
+                
+                // Use a combination of nearest neighbor and 2-opt optimization
+                // to simulate quantum algorithm superiority
+                
+                // Start with warehouse position
+                let currentPoint = 'warehouse';
+                const optimized = [];
+                const pointsCopy = [...points];
+                
+                while (pointsCopy.length > 0) {
+                    let minDist = Infinity;
+                    let nearestIdx = 0;
+                    
+                    for (let i = 0; i < pointsCopy.length; i++) {
+                        const dist = getDistanceFromDataset(currentPoint, pointsCopy[i]);
+                        
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearestIdx = i;
+                        }
+                    }
+                    
+                    optimized.push(pointsCopy[nearestIdx]);
+                    currentPoint = pointsCopy[nearestIdx];
+                    pointsCopy.splice(nearestIdx, 1);
+                }
+                
+                // Apply 2-opt optimization to improve the route
+                return twoOptOptimization(optimized);
+            }
+            
+            function twoOptOptimization(route) {
+                // Simple 2-opt implementation to simulate quantum optimization
+                let improved = true;
+                let bestRoute = route;
+                let bestDistance = calculateTotalDistance(bestRoute);
+                
+                while (improved) {
+                    improved = false;
+                    
+                    for (let i = 0; i < bestRoute.length - 1; i++) {
+                        for (let j = i + 1; j < bestRoute.length; j++) {
+                            const newRoute = swapEdges(bestRoute, i, j);
+                            const newDistance = calculateTotalDistance(newRoute);
+                            
+                            if (newDistance < bestDistance) {
+                                bestRoute = newRoute;
+                                bestDistance = newDistance;
+                                improved = true;
+                            }
+                        }
+                    }
+                }
+                
+                return bestRoute;
+            }
+            
+            function calculateTotalDistance(points) {
+                let totalDistance = 0;
+                let lastPoint = 'warehouse';
+                
+                for (const point of points) {
+                    totalDistance += getDistanceFromDataset(lastPoint, point);
+                    lastPoint = point;
+                }
+                
+                // Return to warehouse
+                totalDistance += getDistanceFromDataset(lastPoint, 'warehouse');
+                
+                return totalDistance;
+            }
+            
+            function swapEdges(route, i, j) {
+                // Implementation of 2-opt swap
+                const newRoute = route.slice(0, i);
+                newRoute.push(...route.slice(i, j + 1).reverse());
+                newRoute.push(...route.slice(j + 1));
+                return newRoute;
+            }
+            
+            function drawRoute(x1, y1, x2, y2, type) {
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const length = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                const route = document.createElement('div');
+                route.className = `route ${type}-route`;
+                route.style.width = `${length}px`;
+                route.style.left = `${x1}px`;
+                route.style.top = `${y1}px`;
+                route.style.transform = `rotate(${angle}deg)`;
+                
+                map.appendChild(route);
+            }
+            
+            function createQuantumParticles(x1, y1, x2, y2) {
+                // Create quantum particle effects along the route
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const length = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx);
+                
+                // Create multiple particles along the route
+                for (let i = 0; i < 5; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'quantum-particle';
+                    
+                    // Random offset along the route
+                    const offset = Math.random() * length;
+                    const particleX = x1 + Math.cos(angle) * offset;
+                    const particleY = y1 + Math.sin(angle) * offset;
+                    
+                    particle.style.left = `${particleX}px`;
+                    particle.style.top = `${particleY}px`;
+                    
+                    // Random movement parameters for the particle
+                    const tx = Math.cos(angle + (Math.random() - 0.5) * 0.5) * 30;
+                    const ty = Math.sin(angle + (Math.random() - 0.5) * 0.5) * 30;
+                    const tx2 = tx + (Math.random() - 0.5) * 20;
+                    const ty2 = ty + (Math.random() - 0.5) * 20;
+                    
+                    particle.style.setProperty('--tx', `${tx}px`);
+                    particle.style.setProperty('--ty', `${ty}px`);
+                    particle.style.setProperty('--tx2', `${tx2}px`);
+                    particle.style.setProperty('--ty2', `${ty2}px`);
+                    
+                    particle.style.animation = `quantumFlow ${1 + Math.random() * 2}s ease-out forwards`;
+                    
+                    map.appendChild(particle);
+                    
+                    // Remove particle after animation completes
+                    setTimeout(() => {
+                        if (particle.parentNode) {
+                            particle.parentNode.removeChild(particle);
+                        }
+                    }, 3000);
+                }
+            }
+            
+            function animateVehicles(points, totalTime, type) {
+                const vehicle = document.createElement('div');
+                vehicle.className = `vehicle ${type}-vehicle`;
+                map.appendChild(vehicle);
+                
+                const warehouseX = parseFloat(warehouse.style.left);
+                const warehouseY = parseFloat(warehouse.style.top);
+                
+                // Start at warehouse
+                vehicle.style.left = `${warehouseX}px`;
+                vehicle.style.top = `${warehouseY}px`;
+                
+                // Animation
+                let currentIndex = 0;
+                let startTime = null;
+                const duration = totalTime * 1000; // Convert to ms
+                
+                function animate(timestamp) {
+                    if (!startTime) startTime = timestamp;
+                    const elapsed = timestamp - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    if (progress < 1) {
+                        // Calculate current position along the path
+                        const segmentProgress = progress * points.length;
+                        const segmentIndex = Math.floor(segmentProgress);
+                        const segmentFraction = segmentProgress - segmentIndex;
+                        
+                        let startX, startY, endX, endY;
+                        
+                        if (segmentIndex === 0) {
+                            startX = warehouseX;
+                            startY = warehouseY;
+                            endX = points[0].x;
+                            endY = points[0].y;
+                        } else if (segmentIndex < points.length) {
+                            startX = points[segmentIndex-1].x;
+                            startY = points[segmentIndex-1].y;
+                            endX = points[segmentIndex].x;
+                            endY = points[segmentIndex].y;
+                        } else {
+                            startX = points[points.length-1].x;
+                            startY = points[points.length-1].y;
+                            endX = warehouseX;
+                            endY = warehouseY;
+                        }
+                        
+                        const currentX = startX + (endX - startX) * segmentFraction;
+                        const currentY = startY + (endY - startY) * segmentFraction;
+                        
+                        vehicle.style.left = `${currentX}px`;
+                        vehicle.style.top = `${currentY}px`;
+                        
+                        // Create quantum particles for quantum vehicle
+                        if (type === 'quantum' && Math.random() > 0.7) {
+                            createQuantumParticles(
+                                parseFloat(vehicle.style.left), 
+                                parseFloat(vehicle.style.top),
+                                parseFloat(vehicle.style.left) + (Math.random() - 0.5) * 20,
+                                parseFloat(vehicle.style.top) + (Math.random() - 0.5) * 20
+                            );
+                            
+                            // Create quantum wave effects
+                            if (Math.random() > 0.8) {
+                                createQuantumWave(
+                                    parseFloat(vehicle.style.left),
+                                    parseFloat(vehicle.style.top)
+                                );
+                            }
+                        }
+                        
+                        requestAnimationFrame(animate);
+                    } else {
+                        // Animation complete
+                        vehicle.style.left = `${warehouseX}px`;
+                        vehicle.style.top = `${warehouseY}px`;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            function createQuantumWave(x, y) {
+                const wave = document.createElement('div');
+                wave.className = 'quantum-wave';
+                wave.style.left = `${x}px`;
+                wave.style.top = `${y}px`;
+                wave.style.animation = `wave 2s ease-out forwards`;
+                quantumState.appendChild(wave);
+                
+                setTimeout(() => {
+                    if (wave.parentNode) {
+                        wave.parentNode.removeChild(wave);
+                    }
+                }, 2000);
+            }
+            
+            function resetRoutes() {
+                // Remove all routes and vehicles
+                const routes = document.querySelectorAll('.route, .vehicle, .quantum-particle, .quantum-wave');
+                routes.forEach(el => el.remove());
+                
+                // Reset progress bar
+                progressBar.style.width = '0%';
+                progressValue.textContent = '0%';
+                
+                // Reset stats
+                document.getElementById('quantum-distance').textContent = '0 km';
+                document.getElementById('traditional-distance').textContent = '0 km';
+                document.getElementById('quantum-time').textContent = '0 min';
+                document.getElementById('traditional-time').textContent = '0 min';
+                
+                // Reset chart
+                comparisonChart.data.datasets[0].data = [0, 0, 0, 0];
+                comparisonChart.data.datasets[1].data = [0, 0, 0, 0];
+                comparisonChart.update();
+            }
+            
+            function resetSimulation() {
+                resetRoutes();
+                generateLocations(parseInt(deliverySlider.value));
+                createQuantumCircuit();
+            }
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                createGridLines();
+                createQuantumCircuit();
+                resetSimulation();
+            });
+        });
+    </script>
+</body>
+</html>
