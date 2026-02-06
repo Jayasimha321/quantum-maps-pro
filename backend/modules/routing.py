@@ -84,15 +84,32 @@ def calculate_distance_matrix(locations, transport_mode, config):
                 seen_locations.add(loc_key)
         
         n = len(unique_locations)
+        
+        # 1. Try Optimized Matrix API first (Handles N > 10 efficiently)
+        transport_profile = config['ORS_PROFILES'].get(transport_mode, 'driving-car')
+        ors_api_key = config.get('ORS_API_KEY', '')
+        
+        if ors_api_key:
+            matrix_dist = get_matrix_from_ors(unique_locations, transport_profile, config, logging.getLogger())
+            if matrix_dist:
+                 # Verify matrix dimensions
+                 if len(matrix_dist) == n and len(matrix_dist[0]) == n:
+                     logging.info(f"Successfully retrieved {n}x{n} distance matrix from ORS Matrix API")
+                     return np.array(matrix_dist)
+                 else:
+                     logging.warning(f"ORS Matrix dimension mismatch. Expected {n}x{n}, got {len(matrix_dist)}x{len(matrix_dist[0] if matrix_dist else 0)}")
+            else:
+                 logging.warning("ORS Matrix API returned None, falling back to iterative method.")
+        
         distances = np.zeros((n, n))
         
-        # Try to use OpenRouteService API for more accurate distances
-        # BUT only for small sets (N <= 10) to avoid O(N^2) API calls which cause timeouts
-        use_ors = True
-        if config.get('ORS_API_KEY', '') == '' or n > 10:
-            use_ors = False
+        # 2. Fallback: Iterative or Haversine for Large N
+        # If Matrix API failed and N > 10, strictly use Haversine to avoid timeout loop
+        use_iterative_ors = True
+        if ors_api_key == '' or n > 10:
+            use_iterative_ors = False
             if n > 10:
-                logging.info(f"Large dataset (N={n}), using Haversine distances to prevent API timeout.")
+                logging.info(f"Matrix API failed & N={n} > 10. Using Haversine to prevent timeout.")
             else:
                 logging.info("No ORS API key provided, using enhanced distance calculation")
         
@@ -101,9 +118,8 @@ def calculate_distance_matrix(locations, transport_mode, config):
                 lat1, lon1 = unique_locations[i]['lat'], unique_locations[i]['lng']
                 lat2, lon2 = unique_locations[j]['lat'], unique_locations[j]['lng']
                 
-                if use_ors:
-                    # Try to get route from ORS
-                    transport_profile = config['ORS_PROFILES'].get(transport_mode, 'driving-car')
+                if use_iterative_ors:
+                    # Try to get route from ORS (Pairwise)
                     route_data = get_route_from_ors(
                         {'lat': lat1, 'lng': lon1},
                         {'lat': lat2, 'lng': lon2},
@@ -580,6 +596,75 @@ def _cached_ors_request(base_url, api_key, coords, profile, avoid_features, alte
         else:
              return None
     except:
+        return None
+
+@lru_cache(maxsize=100)
+def _cached_ors_matrix_request(base_url, api_key, coords, profile):
+    """
+    Cached ORS Matrix request.
+    """
+    try:
+        headers = {
+            'Authorization': api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        payload = {
+            'locations': list(coords),
+            'metrics': ['distance'],
+            'units': 'km'
+        }
+        
+        response = requests.post(base_url, json=payload, headers=headers, timeout=25)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Matrix API Error: {e}")
+        return None
+
+def get_matrix_from_ors(locations, profile, config, logger):
+    """
+    Fetch N x N distance matrix using ORS Matrix API.
+    locations: list of [lat, lng] lists
+    """
+    try:
+        # ORS expects [lon, lat] for matrix locations
+        # Our input locations are dicts {'lat': x, 'lng': y}
+        
+        ors_locs = []
+        for loc in locations:
+            # Handle dictionary input
+            if isinstance(loc, dict) and 'lng' in loc and 'lat' in loc:
+                ors_locs.append([loc['lng'], loc['lat']])
+            # Handle object input (if any) or list
+            elif hasattr(loc, 'lng') and hasattr(loc, 'lat'):
+                ors_locs.append([loc.lng, loc.lat])
+            elif isinstance(loc, list) and len(loc) >= 2:
+                # Assume [lat, lng] -> [lng, lat]
+                 ors_locs.append([loc[1], loc[0]])
+            else:
+                logger.error(f"Invalid location format for Matrix API: {loc}")
+                return None
+                
+        coords_tuple = tuple(tuple(pair) for pair in ors_locs)
+        
+        base_url = f"https://api.openrouteservice.org/v2/matrix/{profile}"
+        
+        json_response = _cached_ors_matrix_request(
+            base_url=base_url,
+            api_key=config.get('ORS_API_KEY', ''),
+            coords=coords_tuple,
+            profile=profile
+        )
+        
+        if not json_response or 'distances' not in json_response:
+            return None
+        
+        # ORS returns distances in a list of lists corresponding to input order
+        return json_response['distances']
+        
+    except Exception as e:
+        logger.error(f"ORS Matrix API failed: {e}")
         return None
 
 def generate_realistic_path(start_loc, end_loc, config, logger, transport_mode='driving'):
